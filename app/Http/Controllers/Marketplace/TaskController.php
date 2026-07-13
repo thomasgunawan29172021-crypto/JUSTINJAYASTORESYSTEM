@@ -1,0 +1,175 @@
+<?php
+
+namespace App\Http\Controllers\Marketplace;
+
+use App\Http\Controllers\Controller;
+use App\Models\MarketplaceTask;
+use App\Models\Posting;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+class TaskController extends Controller
+{
+    public function index(Request $request)
+    {
+        $user  = $request->user();
+        $isCeo = $user->role->isCeo();
+
+        $brandIds = $isCeo ? null : $user->brands()->pluck('brands.id');
+
+        // Filter periode: pending pakai created_at, selesai pakai completed_at
+        $range = $request->string('range')->toString();
+        $since = match ($range) {
+            'today' => now()->startOfDay(),
+            '7d'    => now()->subDays(7)->startOfDay(),
+            '30d'   => now()->subDays(30)->startOfDay(),
+            default => null,
+        };
+
+        // Nilai tak dikenal (mis. ?range=ngawur) → perlakukan sebagai "semua waktu".
+        // Dinormalkan di sini supaya view tidak perlu menebak-nebak label periodenya.
+        if ($since === null) {
+            $range = '';
+        }
+
+        // SATU kata kunci untuk dua daftar: antrian pending DAN riwayat selesai.
+        $q = trim($request->string('q')->toString());
+
+        $pending = MarketplaceTask::with(['product.brand', 'product.prices', 'store'])
+            ->where('status', MarketplaceTask::STATUS_PENDING)
+            ->when(! $isCeo, fn ($qq) => $qq->whereHas('product',
+                fn ($p) => $p->whereIn('brand_id', $brandIds)))
+            ->when($q !== '', fn ($qq) => $qq->whereHas('product',
+                fn ($p) => $p->where('name', 'like', "%{$q}%")))
+            ->when($since, fn ($qq) => $qq->where('created_at', '>=', $since))
+            ->orderByRaw('pinned_at IS NULL')
+            ->orderByDesc('pinned_at')
+            ->orderBy('created_at')
+            ->get()
+            ->groupBy(fn ($t) => $t->store->label());
+
+        // Nama parameter halaman sengaja 'done_page', bukan 'page' — supaya kalau nanti
+        // antrian pending ikut di-paginate, keduanya tidak saling reset.
+        $recentDone = MarketplaceTask::with(['product', 'store', 'completer'])
+            ->where('status', MarketplaceTask::STATUS_DONE)
+            ->when(! $isCeo, fn ($qq) => $qq->where('completed_by', $user->id))
+            ->when($since, fn ($qq) => $qq->where('completed_at', '>=', $since))
+            // withTrashed penting: riwayat memuat produk "di sampah" — tanpa ini, tugas
+            // milik produk terhapus tak akan ketemu padahal barisnya tetap tampil.
+            ->when($q !== '', fn ($qq) => $qq->whereHas('product',
+                fn ($p) => $p->withTrashed()->where('name', 'like', "%{$q}%")))
+            ->orderByDesc('completed_at')
+            ->paginate(10, ['*'], 'done_page')
+            ->withQueryString();
+
+        return view('marketplace.tasks.index', [
+            'pending'    => $pending,
+            'recentDone' => $recentDone,
+            'isCeo'      => $isCeo,
+            'range'      => $range,
+            'q'          => $q,
+        ]);
+    }
+
+    public function complete(Request $request, MarketplaceTask $task)
+    {
+        $user = $request->user();
+
+        // PIC per BRAND: yang boleh menyelesaikan = pemegang brand produk ini (atau CEO)
+        $isPic = $task->product->brand->pics()->whereKey($user->id)->exists();
+        abort_unless($isPic || $user->role->isCeo(), 403, 'Anda bukan PIC brand produk ini.');
+
+        if ($task->status !== MarketplaceTask::STATUS_PENDING) {
+            return back()->withErrors(['task' => 'Tugas ini sudah diselesaikan.']);
+        }
+
+        DB::transaction(function () use ($task, $user) {
+            $task->update([
+                'status'       => MarketplaceTask::STATUS_DONE,
+                'completed_by' => $user->id,
+                'completed_at' => now(),
+            ]);
+
+            // Selesai posting = produk resmi tercatat terposting di toko ini.
+            // Inilah yang membuat perubahan harga berikutnya men-generate tugas update.
+            if ($task->type === MarketplaceTask::TYPE_POSTING) {
+                Posting::firstOrCreate(
+                    ['product_id' => $task->product_id, 'store_id' => $task->store_id],
+                    ['posted_by' => $user->id, 'posted_at' => now()]
+                );
+            }
+        });
+
+        return back()->with('ok', "Tugas \"{$task->typeLabel()} — {$task->product->name}\" selesai.");
+    }
+
+    public function undo(Request $request, MarketplaceTask $task)
+    {
+        $user = $request->user();
+
+        abort_unless($task->completed_by === $user->id || $user->role->isCeo(), 403,
+            'Hanya yang menyelesaikan tugas ini (atau CEO) yang bisa membatalkan.');
+
+        if ($task->status !== MarketplaceTask::STATUS_DONE) {
+            return back()->withErrors(['task' => 'Tugas ini belum berstatus selesai.']);
+        }
+
+        DB::transaction(function () use ($task) {
+            // Cabut catatan posting HANYA jika lahir dari penyelesaian task ini
+            if ($task->type === MarketplaceTask::TYPE_POSTING) {
+                Posting::where('product_id', $task->product_id)
+                    ->where('store_id', $task->store_id)
+                    ->where('posted_by', $task->completed_by)
+                    ->where('posted_at', '>=', $task->completed_at)
+                    ->delete();
+            }
+
+            $task->update([
+                'status'       => MarketplaceTask::STATUS_PENDING,
+                'completed_by' => null,
+                'completed_at' => null,
+            ]);
+        });
+
+        return back()->with('ok', 'Tugas dikembalikan ke antrian.');
+    }
+
+    public function togglePin(Request $request, MarketplaceTask $task)
+    {
+        $user  = $request->user();
+        $isPic = $task->store->pics()->whereKey($user->id)->exists();
+        abort_unless($isPic || $user->role->isCeo(), 403);
+
+        $task->update(['pinned_at' => $task->pinned_at ? null : now()]);
+
+        return back();
+    }
+
+    public function requestRevision(Request $request, MarketplaceTask $task)
+    {
+        // Keputusan Thomas: hanya CEO yang menentukan revisi
+        abort_unless($request->user()->role->isCeo(), 403, 'Hanya CEO yang bisa meminta revisi.');
+
+        $data = $request->validate([
+            'note' => ['required', 'string', 'max:300'],
+        ], [
+            'note.required' => 'Tulis apa yang harus direvisi — PIC butuh tahu salahnya di mana.',
+        ]);
+
+        if ($task->status !== MarketplaceTask::STATUS_DONE) {
+            return back()->withErrors(['task' => 'Revisi hanya bisa diminta untuk tugas yang sudah selesai.']);
+        }
+
+        MarketplaceTask::firstOrCreate(
+            [
+                'type'       => MarketplaceTask::TYPE_REVISION,
+                'product_id' => $task->product_id,
+                'store_id'   => $task->store_id,
+                'status'     => MarketplaceTask::STATUS_PENDING,
+            ],
+            ['created_at' => now(), 'note' => $data['note']]
+        );
+
+        return back()->with('ok', 'Tugas revisi dibuat untuk '.$task->store->name.'.');
+    }
+}
