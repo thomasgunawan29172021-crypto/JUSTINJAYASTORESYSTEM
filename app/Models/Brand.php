@@ -27,4 +27,10 @@ class Brand extends Model
     {
         return $this->belongsToMany(User::class, 'brand_user');
     }
+
+    /** PIC per toko — sumber kebenaran baru. brand_user = turunan dari ini. */
+    public function storePics(): HasMany
+    {
+        return $this->hasMany(BrandStorePic::class);
+    }
 }

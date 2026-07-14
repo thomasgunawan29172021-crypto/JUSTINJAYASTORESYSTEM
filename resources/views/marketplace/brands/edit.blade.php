@@ -17,32 +17,30 @@
         </div>
 
         <div>
-            <p class="text-xs font-semibold text-slate-600 mb-2">Diposting ke toko:</p>
+            <p class="text-xs font-semibold text-slate-600 mb-1">Toko target & PIC per toko:</p>
+            <p class="text-[11px] text-slate-400 mb-2">
+                Centang toko tempat brand ini diposting, lalu pilih SATU penanggung jawab per toko.
+                Satu toko satu PIC — tidak bisa dobel. Dropdown kosong = toko belum ada yang pegang (muncul di alert).
+            </p>
             <div class="space-y-1.5">
                 @foreach($stores as $s)
-                    <label class="flex items-center gap-2 text-sm cursor-pointer">
-                        <input type="checkbox" name="stores[]" value="{{ $s->id }}" class="rounded"
-                               @checked($brand->stores->contains($s->id))>
-                        {{ $s->label() }}
-                    </label>
-                @endforeach
-            </div>
-
-            <div class="border-t border-slate-100 pt-4">
-            <p class="text-xs font-semibold text-slate-600 mb-1">PIC Brand (penanggung jawab posting)</p>
-            <p class="text-[11px] text-slate-400 mb-2">
-                PIC brand mengerjakan SEMUA tugas produk brand ini di semua toko targetnya.
-                Toko baru yang ditambahkan ke target otomatis masuk antrian PIC — tanpa assign ulang.
-            </p>
-            <div class="flex flex-wrap gap-2">
-                    @foreach($users as $usr)
-                        <label class="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm cursor-pointer hover:bg-slate-50">
-                            <input type="checkbox" name="pics[]" value="{{ $usr->id }}" class="rounded"
-                                @checked($brand->pics->contains($usr->id))>
-                            {{ $usr->name }}
+                    @php $on = $brand->stores->contains($s->id); @endphp
+                    <div class="flex items-center gap-2">
+                        <label class="flex items-center gap-2 text-sm cursor-pointer flex-1 min-w-0">
+                            <input type="checkbox" name="stores[]" value="{{ $s->id }}" class="rounded store-check"
+                                   data-pic="pic-{{ $s->id }}" @checked($on)>
+                            <span class="truncate">{{ $s->label() }}</span>
                         </label>
-                    @endforeach
-                </div>
+                        <select name="store_pics[{{ $s->id }}]" id="pic-{{ $s->id }}"
+                                class="w-44 rounded-lg border border-slate-300 px-2 py-1.5 text-xs bg-white disabled:bg-slate-50 disabled:text-slate-300"
+                                {{ $on ? '' : 'disabled' }}>
+                            <option value="">— PIC toko ini —</option>
+                            @foreach($users as $usr)
+                                <option value="{{ $usr->id }}" @selected(($picMap[$s->id] ?? null) == $usr->id)>{{ $usr->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                @endforeach
             </div>
 
             @if($stores->isEmpty())
@@ -55,4 +53,12 @@
             <a href="{{ route('marketplace.brands.index') }}" class="text-sm text-slate-500 hover:underline">Batal</a>
         </div>
     </form>
+
+    <script>
+    document.querySelectorAll('.store-check').forEach(function (c) {
+        var sel = document.getElementById(c.getAttribute('data-pic'));
+        function apply() { sel.disabled = !c.checked; if (!c.checked) sel.value = ''; }
+        c.addEventListener('change', apply);
+    });
+    </script>
 @endsection
