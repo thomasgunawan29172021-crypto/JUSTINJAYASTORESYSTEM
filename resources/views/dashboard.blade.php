@@ -7,9 +7,21 @@
 @section('content')
     <h1 class="text-2xl font-bold">Hello {{ auth()->user()->name }} 👋</h1>
 
-    @unless($isCeo)
-        <p class="text-slate-500 mt-1">Selamat datang di Justin Jaya Store.</p>
-    @else
+        @unless($isCeo)
+            <p class="text-slate-500 mt-1 mb-6">Selamat datang di Justin Jaya Store.</p>
+
+            <a href="{{ route('attendance.index') }}"
+            class="block max-w-md rounded-2xl bg-emerald-500 hover:bg-emerald-400 transition text-white p-6 shadow-lg shadow-emerald-500/20">
+                <div class="flex items-center gap-4">
+                    <span class="text-4xl">📍</span>
+                    <div>
+                        <p class="text-xl font-bold">Absen Sekarang</p>
+                        <p class="text-sm text-emerald-50 mt-0.5">Klik untuk clock-in / clock-out hari ini</p>
+                    </div>
+                    <span class="ml-auto text-2xl">→</span>
+                </div>
+            </a>
+        @else
         <p class="text-slate-500 mt-1 mb-5">Pusat komando — ringkasan lintas modul.</p>
 
         {{-- ===== ALERT GABUNGAN ===== --}}
