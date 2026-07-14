@@ -32,6 +32,7 @@ class UserManagementController extends Controller
             'name'      => ['required', 'string', 'max:100'],
             // 'string' bukan 'email' — konsisten dengan akun seed (admin@admin tanpa TLD)
             'email'     => ['required', 'string', 'max:100', 'unique:users,email'],
+            'phone'     => ['nullable', 'string', 'max:20'],
             'password'  => ['required', 'string', 'min:6'],
             'role'      => ['required', Rule::enum(UserRole::class)],
             'branch_id' => ['required', 'exists:branches,id'], // wajib di form; DB tetap nullable (jaring pengaman)
@@ -61,6 +62,7 @@ class UserManagementController extends Controller
         $data = $request->validate([
             'name'      => ['required', 'string', 'max:100'],
             'email'     => ['required', 'string', 'max:100', Rule::unique('users', 'email')->ignore($user->id)],
+            'phone'     => ['nullable', 'string', 'max:20'],
             'password'  => ['nullable', 'string', 'min:6'], // kosong = password tidak diubah
             'role'      => ['required', Rule::enum(UserRole::class)],
             'branch_id' => ['required', 'exists:branches,id'],

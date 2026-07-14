@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Marketplace;
 use App\Http\Controllers\Controller;
 use App\Models\MarketplaceTask;
 use App\Models\Posting;
+use App\Models\BrandStorePic;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -14,8 +15,6 @@ class TaskController extends Controller
     {
         $user  = $request->user();
         $isCeo = $user->role->isCeo();
-
-        $brandIds = $isCeo ? null : $user->brands()->pluck('brands.id');
 
         // Filter periode: pending pakai created_at, selesai pakai completed_at
         $range = $request->string('range')->toString();
@@ -37,8 +36,15 @@ class TaskController extends Controller
 
         $pending = MarketplaceTask::with(['product.brand', 'product.prices', 'store'])
             ->where('status', MarketplaceTask::STATUS_PENDING)
-            ->when(! $isCeo, fn ($qq) => $qq->whereHas('product',
-                fn ($p) => $p->whereIn('brand_id', $brandIds)))
+            ->when(! $isCeo, fn ($qq) => $qq->whereExists(function ($sub) use ($user) {
+                // PIC per brand+TOKO (Tahap B) — bukan lagi seluruh brand.
+                $sub->select(DB::raw(1))
+                    ->from('brand_store_user')
+                    ->join('products', 'products.brand_id', '=', 'brand_store_user.brand_id')
+                    ->whereColumn('products.id', 'marketplace_tasks.product_id')
+                    ->whereColumn('brand_store_user.store_id', 'marketplace_tasks.store_id')
+                    ->where('brand_store_user.user_id', $user->id);
+            }))
             ->when($q !== '', fn ($qq) => $qq->whereHas('product',
                 fn ($p) => $p->where('name', 'like', "%{$q}%")))
             ->when($since, fn ($qq) => $qq->where('created_at', '>=', $since))
@@ -75,9 +81,13 @@ class TaskController extends Controller
     {
         $user = $request->user();
 
-        // PIC per BRAND: yang boleh menyelesaikan = pemegang brand produk ini (atau CEO)
-        $isPic = $task->product->brand->pics()->whereKey($user->id)->exists();
-        abort_unless($isPic || $user->role->isCeo(), 403, 'Anda bukan PIC brand produk ini.');
+        // PIC per brand+TOKO (Tahap B): dicek terhadap toko tugas ini SPESIFIK,
+        // bukan seluruh brand lagi.
+        $isPic = BrandStorePic::where('brand_id', $task->product->brand_id)
+            ->where('store_id', $task->store_id)
+            ->where('user_id', $user->id)
+            ->exists();
+        abort_unless($isPic || $user->role->isCeo(), 403, 'Anda bukan PIC brand ini di toko tersebut.');
 
         if ($task->status !== MarketplaceTask::STATUS_PENDING) {
             return back()->withErrors(['task' => 'Tugas ini sudah diselesaikan.']);
@@ -137,7 +147,10 @@ class TaskController extends Controller
     public function togglePin(Request $request, MarketplaceTask $task)
     {
         $user  = $request->user();
-        $isPic = $task->store->pics()->whereKey($user->id)->exists();
+        $isPic = BrandStorePic::where('brand_id', $task->product->brand_id)
+            ->where('store_id', $task->store_id)
+            ->where('user_id', $user->id)
+            ->exists();
         abort_unless($isPic || $user->role->isCeo(), 403);
 
         $task->update(['pinned_at' => $task->pinned_at ? null : now()]);

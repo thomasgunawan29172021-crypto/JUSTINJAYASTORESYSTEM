@@ -30,8 +30,13 @@
 
             <div>
                 <label class="block text-xs font-semibold text-slate-600 mb-1">Password</label>
-                <input type="password" name="password" required
-                       class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <div class="relative">
+                    <input type="password" name="password" id="pwField" required
+                           class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm pr-10 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    <button type="button" tabindex="-1"
+                            onclick="var f=document.getElementById('pwField');f.type=f.type==='password'?'text':'password';this.textContent=f.type==='password'?'👁':'🙈'"
+                            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">👁</button>
+                </div>
             </div>
 
             <label class="flex items-center gap-2 text-sm text-slate-600">

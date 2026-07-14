@@ -17,7 +17,7 @@
                 <tr>
                     <th class="px-4 py-3">Id</th>
                     <th class="px-4 py-3">Nama</th>
-                    <th class="px-4 py-3">Email</th>
+                    <th class="px-4 py-3">Kontak</th>
                     <th class="px-4 py-3">Role</th>
                     <th class="px-4 py-3">Cabang</th>
                     <th class="px-4 py-3">Status</th>
@@ -34,7 +34,12 @@
                                 <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px]">Anda</span>
                             @endif
                         </td>
-                        <td class="px-4 py-3 text-slate-600">{{ $u->email }}</td>
+                        <td class="px-4 py-3 text-slate-600">
+                            {{ $u->email }}
+                            @if($u->phone)
+                                <span class="block text-[11px] text-slate-400">📱 {{ $u->phone }}</span>
+                            @endif
+                        </td>
                         <td class="px-4 py-3">{{ $u->role->label() }}</td>
                         <td class="px-4 py-3">{{ $u->branch?->code ?? '—' }}</td>
                         <td class="px-4 py-3">

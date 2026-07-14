@@ -23,11 +23,23 @@
         </div>
 
         <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">No. Telepon <span class="font-normal text-slate-400">(opsional — pegangan kontak)</span></label>
+            <input type="text" name="phone" inputmode="tel" value="{{ old('phone', $user->phone) }}" maxlength="20"
+                   placeholder="08xxxxxxxxxx"
+                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        </div>
+
+        <div>
             <label class="block text-xs font-semibold text-slate-600 mb-1">
                 Password baru <span class="font-normal text-slate-400">(kosongkan kalau tidak diganti)</span>
             </label>
-            <input type="password" name="password"
-                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <div class="relative">
+                <input type="password" name="password" id="pwField"
+                       class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm pr-10">
+                <button type="button" tabindex="-1"
+                        onclick="var f=document.getElementById('pwField');f.type=f.type==='password'?'text':'password';this.textContent=f.type==='password'?'👁':'🙈'"
+                        class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">👁</button>
+            </div>
         </div>
 
         <div class="grid sm:grid-cols-2 gap-4">
