@@ -228,6 +228,13 @@ Route::middleware(['auth', 'active'])->group(function () {
         });
     });
 
+    // ---------------- KALENDER (semua staf lihat; CEO kelola) ----------------
+    Route::get('/calendar', [\App\Http\Controllers\CalendarController::class, 'index'])->name('calendar.index');
+    Route::middleware('ceo')->group(function () {
+        Route::post('/calendar',            [\App\Http\Controllers\CalendarController::class, 'store'])->name('calendar.store');
+        Route::delete('/calendar/{event}',  [\App\Http\Controllers\CalendarController::class, 'destroy'])->name('calendar.destroy');
+    });
+
     // ---------------- KEUANGAN (CEO + Kepala Keuangan) ----------------
     Route::middleware('finance')->group(function () {
         Route::get('/payroll',                [PayrollController::class, 'index'])->name('payroll.index');

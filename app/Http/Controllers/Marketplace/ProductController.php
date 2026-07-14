@@ -28,8 +28,12 @@ class ProductController extends Controller
             ->when(! $request->boolean('archived'),
                 fn ($q) => $q->whereNull('archived_at'),
                 fn ($q) => $q->whereNotNull('archived_at'))
-            ->when($request->filled('q'),
-                fn ($q) => $q->where('name', 'like', '%'.trim($request->string('q')).'%'))
+            ->when($request->filled('q'), function ($q) use ($request) {
+                $term = '%'.trim($request->string('q')).'%';
+                $q->where(fn ($sub) => $sub->where('name', 'like', $term)
+                    ->orWhere('barcode', 'like', $term)
+                    ->orWhere('sku', 'like', $term));
+            })
             ->when($request->filled('brand_id'),
                 fn ($q) => $q->where('brand_id', (int) $request->input('brand_id')))
             ->orderBy($col, $dir)
@@ -316,6 +320,8 @@ class ProductController extends Controller
         $data = $request->validate([
             'name'          => ['required', 'string', 'max:200',
                 Rule::unique('products', 'name')->ignore($product?->id)],
+            'barcode'       => ['nullable', 'string', 'max:100'],
+            'sku'           => ['nullable', 'string', 'max:100'],
             'brand_id'      => ['required', 'exists:brands,id'],
             'cost_price'    => ['nullable', 'integer', 'min:0'],
             'price_offline' => ['nullable', 'integer', 'min:0'],
@@ -326,6 +332,13 @@ class ProductController extends Controller
         // (Operator array + tidak menimpa key null — makanya di-set eksplisit.)
         foreach (['cost_price', 'price_offline', 'price_grosir'] as $field) {
             $data[$field] = (int) ($data[$field] ?? 0);
+        }
+
+        // Kolom opsional: input kosong → NULL, bukan string kosong.
+        // Key selalu di-set supaya edit yang mengosongkan field benar-benar menghapus nilainya.
+        foreach (['barcode', 'sku'] as $field) {
+            $value          = trim($data[$field] ?? '');
+            $data[$field]   = $value === '' ? null : $value;
         }
 
         return $data;

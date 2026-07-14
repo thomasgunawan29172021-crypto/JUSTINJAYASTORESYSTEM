@@ -40,7 +40,7 @@
 
     @unless($trashView ?? false)
     <form method="GET" class="flex flex-wrap gap-2 mb-4">
-        <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari nama produk..."
+        <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari nama / barcode / SKU..."
                class="flex-1 min-w-48 rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
         <select name="brand_id" class="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
             <option value="">Semua brand</option>
@@ -88,6 +88,12 @@
                                 @if($p->replacement)
                                     <p class="text-[11px] text-slate-400 font-normal">pengganti: {{ $p->replacement->name }}</p>
                                 @endif
+                            @endif
+                            @if($p->barcode || $p->sku)
+                                <p class="text-[11px] text-slate-400 font-normal">
+                                    @if($p->sku)SKU: {{ $p->sku }}@endif
+                                    @if($p->barcode)<span class="@if($p->sku)ml-2 @endif">🔖 {{ $p->barcode }}</span>@endif
+                                </p>
                             @endif
                         </td>
                         <td class="px-3 py-2.5">{{ $p->brand->name }}</td>

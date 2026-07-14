@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Dashboard') — Justin Jaya Command Center</title>
+    <link rel="icon" type="image/png" href="{{ asset('images/favicon.png') }}">
     @hasSection('autorefresh')
         <meta http-equiv="refresh" content="60">
     @endif
@@ -38,6 +39,9 @@
                 ['Platform Sosmed', 'sosmed.platforms.index', $isCeo],   // master data — CEO only
                 ['Leaderboard', 'sosmed.leaderboard', true],
             ]],
+            'kalender' => ['label' => 'Kalender', 'tiles' => [
+                ['Kalender', 'calendar.index', true],
+            ]],
             'kepegawaian' => ['label' => 'Kepegawaian', 'tiles' => [
                 ['Absensi',        'attendance.index', true],
                 ['Izin & Cuti',    'leaves.index', true],
@@ -71,6 +75,7 @@
             'kepegawaian' => '<circle cx="9" cy="8" r="3"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M16 5.5a3 3 0 0 1 0 6"/><path d="M20.5 20a5 5 0 0 0-3.5-4.8"/>',
             'keuangan'    => '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1.2"/>',
             'pengaturan'  => '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M18.8 5.2l-2.1 2.1M7.3 16.7l-2.1 2.1"/>',
+            'kalender'    => '<rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><circle cx="12" cy="15" r="1"/>',
         ];
 
         // Emoji untuk logo tile di mega menu
@@ -99,6 +104,7 @@
             'sosmed.report'                 => '📋',
             'sosmed.leaderboard'            => '🏆',
             'sosmed.platforms.index'        => '🌐',
+            'calendar.index'                => '📅',
         ];
 
         // Peta route → label tab (dari menu + halaman detail yang tak ada di menu)
@@ -140,6 +146,7 @@
             str_starts_with($curRoute, 'users.'),
             str_starts_with($curRoute, 'branches.')                           => 'pengaturan',
             $curRoute === 'dashboard'                                         => 'dashboard',
+            str_starts_with($curRoute, 'calendar.')                            => 'kalender',
             default                                                           => null,
         };
     @endphp

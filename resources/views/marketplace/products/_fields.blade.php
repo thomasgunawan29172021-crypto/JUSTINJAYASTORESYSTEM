@@ -6,6 +6,21 @@
            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
 </div>
 
+<div class="grid sm:grid-cols-2 gap-3">
+    <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Barcode</label>
+        <input type="text" name="barcode" value="{{ old('barcode', $p?->barcode) }}" maxlength="100"
+               placeholder="mis. 8991234567890"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+    </div>
+    <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Kode SKU</label>
+        <input type="text" name="sku" value="{{ old('sku', $p?->sku) }}" maxlength="100"
+               placeholder="mis. SRS-HC9-BLK"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+    </div>
+</div>
+
 <div>
     <label class="block text-xs font-semibold text-slate-600 mb-1">Brand *</label>
     <select name="brand_id" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
