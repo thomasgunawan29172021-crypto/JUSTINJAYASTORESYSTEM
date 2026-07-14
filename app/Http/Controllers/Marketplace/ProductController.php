@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Marketplace;
 use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Models\MarketplaceTask;
+use App\Models\Posting;
 use App\Models\Product;
 use App\Models\Store;
 use App\Services\PostingTaskService;
@@ -42,7 +43,7 @@ class ProductController extends Controller
 
         $activeStoreIds = Store::where('is_active', true)->pluck('id');
 
-        $postedCounts = \App\Models\Posting::whereIn('product_id', $products->pluck('id'))
+        $postedCounts = Posting::whereIn('product_id', $products->pluck('id'))
             ->whereIn('store_id', $activeStoreIds)
             ->selectRaw('product_id, count(*) c')
             ->groupBy('product_id')
@@ -141,7 +142,8 @@ class ProductController extends Controller
     public function importForm()
     {
         return view('marketplace.products.import', [
-            'marketplaces' => Store::where('is_active', true)->pluck('marketplace')->unique()->values(),
+            'marketplaces'   => Store::where('is_active', true)->pluck('marketplace')->unique()->values(),
+            'postingColumns' => $this->postingColumns(),
         ]);
     }
 
@@ -156,10 +158,18 @@ class ProductController extends Controller
             return back()->withErrors(['file' => 'Kolom wajib tidak ditemukan: minimal harus ada "nama" dan "brand" di baris pertama.']);
         }
 
-        $marketplaces = Store::where('is_active', true)->pluck('marketplace')->unique();
-        $created = 0; $updated = 0; $skipped = 0; $newBrands = [];
+        $marketplaces   = Store::where('is_active', true)->pluck('marketplace')->unique();
+        $postingColumns = $this->postingColumns();
 
-        DB::transaction(function () use ($handle, $header, $marketplaces, &$created, &$updated, &$skipped, &$newBrands) {
+        // Matriks posting MENETAPKAN status posting langsung — tanpa tugas, tanpa kredit PIC.
+        // Route ini sudah CEO-only (middleware 'ceo'); guard dipertahankan agar tetap aman
+        // seandainya route dipindah keluar dari grup CEO.
+        $canSetPosting = $request->user()->role->isCeo();
+
+        $created = 0; $updated = 0; $skipped = 0; $newBrands = [];
+        $posted = 0; $unposted = 0;
+
+        DB::transaction(function () use ($handle, $header, $marketplaces, $postingColumns, $canSetPosting, &$created, &$updated, &$skipped, &$newBrands, &$posted, &$unposted) {
             while (($raw = fgetcsv($handle, null, ',', '"', '')) !== false) {
                 $row = array_combine($header, array_pad($raw, count($header), null));
 
@@ -208,12 +218,70 @@ class ProductController extends Controller
                         );
                     }
                 }
+
+                // Matriks posting: kolom "post_{nama toko}" berisi v (sudah) / x (belum).
+                // Sel KOSONG = status toko itu tidak disentuh → CSV tanpa kolom ini tetap aman.
+                if (! $canSetPosting) {
+                    continue;
+                }
+
+                foreach ($postingColumns as $key => $store) {
+                    $cell = strtolower(trim((string) ($row[$key] ?? '')));
+
+                    if ($cell === '') {
+                        continue;
+                    }
+
+                    if (in_array($cell, ['v', 'ya', 'yes', 'y', '1', 'true', 'centang'], true)) {
+                        // posted_by = null → input mundur, TIDAK dikreditkan ke PIC mana pun.
+                        $posting = Posting::firstOrCreate(
+                            ['product_id' => $product->id, 'store_id' => $store->id],
+                            ['posted_by' => null, 'posted_at' => now()]
+                        );
+
+                        // Sudah posted sebelumnya → jangan sentuh apa pun (re-import file yang sama = nol perubahan).
+                        if (! $posting->wasRecentlyCreated) {
+                            continue;
+                        }
+
+                        // Baru ditandai posted → tugas posting yang masih pending jadi basi.
+                        MarketplaceTask::where('type', MarketplaceTask::TYPE_POSTING)
+                            ->where('product_id', $product->id)
+                            ->where('store_id', $store->id)
+                            ->where('status', MarketplaceTask::STATUS_PENDING)
+                            ->delete();
+
+                        $posted++;
+
+                        continue;
+                    }
+
+                    // "x" = belum posting → hapus posting bila ada (koreksi CEO).
+                    // Tidak membuat tugas baru: backlog digenerate terpisah dari Dashboard MP.
+                    $removed = Posting::where('product_id', $product->id)
+                        ->where('store_id', $store->id)
+                        ->delete();
+
+                    if ($removed) {
+                        // Tugas update harga hanya berlaku untuk toko yang sudah posting → jadi basi.
+                        MarketplaceTask::where('type', MarketplaceTask::TYPE_PRICE_UPDATE)
+                            ->where('product_id', $product->id)
+                            ->where('store_id', $store->id)
+                            ->where('status', MarketplaceTask::STATUS_PENDING)
+                            ->delete();
+
+                        $unposted++;
+                    }
+                }
             }
         });
 
         fclose($handle);
 
         $msg = "Import selesai: {$created} produk baru, {$updated} diperbarui, {$skipped} baris dilewati.";
+        if ($posted || $unposted) {
+            $msg .= " Matriks posting: {$posted} ditandai sudah posting, {$unposted} dibatalkan.";
+        }
         if ($newBrands) {
             $msg .= ' ⚠️ Brand BARU tercipta: '.implode(', ', array_unique($newBrands)).' — cek typo & petakan ke toko di menu Brand!';
         }
@@ -221,20 +289,54 @@ class ProductController extends Controller
         return redirect()->route('marketplace.products.index')->with('ok', $msg);
     }
 
-    /** Export CSV — format kolom SAMA dengan format import (round-trip aman). */
+    /**
+     * Kolom matriks posting: 1 kolom per toko aktif, key "post_{nama toko}".
+     * Prefix "post_" supaya tidak bentrok dengan kolom harga ({marketplace}_mall).
+     *
+     * Nama toko yang kembar antar-marketplace (mis. "JJ Official" di Shopee DAN TikTok)
+     * dibedakan jadi "post_{nama} ({marketplace})". Tanpa ini header-nya dobel dan saat
+     * import satu toko diam-diam tidak ter-update.
+     *
+     * Dipakai bersama oleh export & import — key-nya dijamin identik.
+     *
+     * @return \Illuminate\Support\Collection<string, Store> key kolom (lowercase) → Store
+     */
+    protected function postingColumns()
+    {
+        $stores = Store::where('is_active', true)->orderBy('name')->get();
+
+        $duplicateNames = $stores
+            ->countBy(fn (Store $s) => strtolower(trim($s->name)))
+            ->filter(fn (int $count) => $count > 1);
+
+        return $stores->keyBy(function (Store $s) use ($duplicateNames) {
+            $name = strtolower(trim($s->name));
+
+            return $duplicateNames->has($name)
+                ? "post_{$name} ({$s->marketplace})"
+                : "post_{$name}";
+        });
+    }
+
+    /** Export CSV — kolom harga + matriks posting per toko (v/x). Round-trip aman. */
     public function export()
     {
-        $marketplaces = Store::where('is_active', true)->pluck('marketplace')->unique()->values();
+        $marketplaces   = Store::where('is_active', true)->pluck('marketplace')->unique()->values();
+        $postingColumns = $this->postingColumns();
 
         $header = ['nama', 'brand', 'harga_beli', 'harga_offline', 'harga_grosir'];
         foreach ($marketplaces as $mp) {
             $header[] = "{$mp}_mall";
             $header[] = "{$mp}_biasa";
         }
+        foreach ($postingColumns->keys() as $key) {
+            $header[] = $key;
+        }
 
-        $products = Product::with(['brand', 'prices'])->whereNull('archived_at')->orderBy('name')->get();
+        $products = Product::with(['brand', 'prices', 'postings:id,product_id,store_id'])
+            ->whereNull('archived_at')->orderBy('name')->get();
 
-        return response()->streamDownload(function () use ($products, $marketplaces, $header) {
+        return response()->streamDownload(function () use ($products, $marketplaces, $postingColumns, $header) {
             $out = fopen('php://output', 'w');
             fputcsv($out, $header, ',', '"', '');
 
@@ -245,6 +347,11 @@ class ProductController extends Controller
                     $price = $p->prices->firstWhere('marketplace', $mp);
                     $row[] = $price?->price_mall ?? '';     // kosong, bukan 0 — supaya re-import tetap null
                     $row[] = $price?->price_regular ?? '';
+                }
+
+                $postedStoreIds = $p->postings->pluck('store_id')->flip();
+                foreach ($postingColumns as $store) {
+                    $row[] = $postedStoreIds->has($store->id) ? 'v' : 'x';
                 }
 
                 fputcsv($out, $row, ',', '"', '');

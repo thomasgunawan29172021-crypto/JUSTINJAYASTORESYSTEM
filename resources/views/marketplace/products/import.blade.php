@@ -6,6 +6,19 @@
     <a href="{{ route('marketplace.products.index') }}" class="text-sm text-slate-500 hover:underline">← Produk</a>
     <h1 class="text-xl font-bold mt-2 mb-5">Import Produk (CSV)</h1>
 
+    {{-- Halaman ini sudah CEO-only (middleware 'ceo'), jadi peringatan ini selalu tampil ke yang bisa membukanya. --}}
+    <div class="mb-4 max-w-4xl rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <b>⚠️ Matriks posting aktif — mode CEO.</b>
+        Kolom <code class="bg-amber-100 px-1 rounded">post_[nama toko]</code> berisi <b>v</b> (sudah posting) / <b>x</b> (belum)
+        akan <b>langsung menetapkan status posting</b>, tanpa membuat tugas dan tanpa dikreditkan ke PIC mana pun.
+        <ul class="list-disc list-inside mt-1.5 space-y-0.5 text-[13px]">
+            <li><b>v</b> → ditandai sudah posting. Tugas posting yang masih pending untuk toko itu ikut dihapus.</li>
+            <li><b>x</b> → posting dihapus bila ada. <b>Termasuk kredit PIC yang benar-benar mengerjakannya</b> — hati-hati.</li>
+            <li><b>Kosong</b> → status toko itu <b>tidak diubah</b> (aman).</li>
+        </ul>
+        Gunakan untuk migrasi data awal, bukan operasi harian. Cara paling aman: <b>Export dulu</b>, edit kolomnya, lalu import balik.
+    </div>
+
     <div class="grid lg:grid-cols-2 gap-4 max-w-4xl">
         <form method="POST" action="{{ route('marketplace.products.import') }}" enctype="multipart/form-data"
               class="bg-white rounded-xl border border-slate-200 p-5 space-y-4 self-start">
@@ -31,6 +44,13 @@
                     <li><code class="bg-slate-100 px-1 rounded">{{ $mp }}_mall</code>, <code class="bg-slate-100 px-1 rounded">{{ $mp }}_biasa</code></li>
                 @endforeach
             </ul>
+            <p class="mt-3 mb-2">Matriks posting — isi <code class="bg-slate-100 px-1 rounded">v</code> / <code class="bg-slate-100 px-1 rounded">x</code> / kosong:</p>
+            <ul class="list-disc list-inside text-xs text-slate-600 space-y-0.5">
+                @foreach($postingColumns->keys() as $key)
+                    <li><code class="bg-slate-100 px-1 rounded">{{ $key }}</code></li>
+                @endforeach
+            </ul>
+
             <p class="text-[11px] text-amber-600 mt-3">
                 ⚠️ Brand yang belum ada akan DIBUAT otomatis — pastikan ejaan konsisten ("Oppo" ≠ "OPPO" ≠ "Opo"),
                 dan setelah import cek menu Brand untuk memetakan brand baru ke toko.

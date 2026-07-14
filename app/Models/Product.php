@@ -28,6 +28,12 @@ class Product extends Model
         return $this->hasMany(ProductPrice::class);
     }
 
+    /** Toko yang SUDAH memposting produk ini (sumber kebenaran status posting). */
+    public function postings(): HasMany
+    {
+        return $this->hasMany(Posting::class);
+    }
+
     public function replacement(): BelongsTo
     {
         return $this->belongsTo(self::class, 'replacement_product_id');
