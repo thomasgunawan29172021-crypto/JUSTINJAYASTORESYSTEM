@@ -15,6 +15,10 @@ class VideoController extends Controller
     public function index(Request $request)
     {
         $videos = SocialVideo::with(['creators', 'postings.platform', 'postings.latestSnapshot'])
+            ->when($request->filled('q'), function ($q) use ($request) {
+                $term = '%'.trim($request->string('q')).'%';
+                $q->where(fn ($s) => $s->where('title', 'like', $term)->orWhere('code', 'like', $term));
+            })
             ->when($request->filled('platform_id'), fn ($q) => $q->whereHas('postings',
                 fn ($p) => $p->where('platform_id', (int) $request->input('platform_id'))))
             ->when($request->filled('user_id'), fn ($q) => $q->whereHas('creators',
@@ -45,6 +49,7 @@ class VideoController extends Controller
         $video = SocialVideo::create([
             'is_collab'    => (bool) ($data['is_collab'] ?? false),
             'title'        => $data['title'],
+            'code'         => $data['code'] ?? null,
             'theme'        => $data['theme'] ?? null,
             'published_at' => $data['published_at'],
             'added_by'     => $request->user()->id,
@@ -80,6 +85,7 @@ class VideoController extends Controller
         $video->update([
             'is_collab'    => (bool) ($data['is_collab'] ?? false),
             'title'        => $data['title'],
+            'code'         => $data['code'] ?? null,
             'theme'        => $data['theme'] ?? null,
             'published_at' => $data['published_at'],
         ]);
@@ -116,6 +122,7 @@ class VideoController extends Controller
             'platform_ids.*' => ['exists:platforms,id'],
             'urls'           => ['required', 'array'],
             'title'          => ['required', 'string', 'max:200'],
+            'code'           => ['nullable', 'string', 'max:50'],
             'theme'          => ['nullable', 'string', 'max:100'],
             'published_at'   => ['required', 'date', 'before_or_equal:today'],
         ]);

@@ -13,6 +13,11 @@
 
     <form method="GET" class="flex flex-wrap items-end gap-2 mb-5">
         <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Cari</label>
+            <input type="text" name="q" value="{{ request('q') }}" placeholder="judul / kode…"
+                   class="rounded-lg border border-slate-300 px-3 py-2 text-sm w-44">
+        </div>
+        <div>
             <label class="block text-xs font-medium text-slate-600 mb-1">Platform</label>
             <select name="platform_id" class="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
                 <option value="">Semua</option>
@@ -52,6 +57,9 @@
                     <tr class="hover:bg-slate-50">
                         <td class="px-4 py-2.5">
                             <div class="flex items-center gap-1.5 flex-wrap">
+                                @if($v->code)
+                                    <span class="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">{{ $v->code }}</span>
+                                @endif
                                 <a href="{{ $v->postings->first()?->url ?? '#' }}" target="_blank" rel="noopener" class="font-semibold text-emerald-700 hover:underline">{{ $v->title }}</a>
                                 @foreach($v->postings as $p)
                                     <a href="{{ $p->url }}" target="_blank" rel="noopener" title="Buka di {{ $p->platform->name }}"

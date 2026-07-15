@@ -43,10 +43,18 @@
             </div>
         </div>
 
-        <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Judul Video *</label>
-            <input type="text" name="title" required maxlength="200" value="{{ old('title', $video->title) }}"
-                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <div class="grid sm:grid-cols-3 gap-4">
+            <div class="sm:col-span-2">
+                <label class="block text-xs font-medium text-slate-600 mb-1">Judul Video *</label>
+                <input type="text" name="title" required maxlength="200" value="{{ old('title', $video->title) }}"
+                       class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Kode video <span class="font-normal text-slate-400">(opsional)</span></label>
+                <input type="text" name="code" maxlength="50" value="{{ old('code', $video->code) }}"
+                       placeholder="mis. VD-0715-01"
+                       class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </div>
         </div>
 
         <div class="sm:col-span-2">

@@ -10,7 +10,7 @@ class SocialVideo extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'user_id', 'added_by', 'title', 'theme', 'is_collab', 'published_at', 'frozen_at',
+        'user_id', 'added_by', 'title', 'theme', 'is_collab', 'published_at', 'frozen_at', 'code'
     ];
 
     protected $casts = [
