@@ -10,9 +10,13 @@ class Store extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['name', 'marketplace', 'is_mall', 'is_active'];
+    protected $fillable = ['name', 'marketplace', 'is_mall', 'is_active', 'account_email', 'account_phone', 'account_password'];
 
-    protected $casts = ['is_mall' => 'boolean', 'is_active' => 'boolean'];
+    protected $casts = [
+        'is_mall'          => 'boolean',
+        'is_active'        => 'boolean',
+        'account_password' => 'encrypted',
+    ];
 
     public function pics(): BelongsToMany
     {

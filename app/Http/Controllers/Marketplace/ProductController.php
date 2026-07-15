@@ -25,7 +25,12 @@ class ProductController extends Controller
             default        => ['name', 'asc'],
         };
 
-        $products = Product::with(['brand', 'prices'])
+            $products = Product::with([
+                'brand.stores' => fn ($q) => $q->where('is_active', true),
+                'prices',
+                'postings.poster',
+                'postings.corrector',
+            ])
             ->when(! $request->boolean('archived'),
                 fn ($q) => $q->whereNull('archived_at'),
                 fn ($q) => $q->whereNotNull('archived_at'))
@@ -87,13 +92,16 @@ class ProductController extends Controller
             ->with('ok', "Produk {$data['name']} ditambahkan — {$created} tugas posting dibuat, {$marked} toko ditandai sudah posting.");
     }
 
-    public function edit(Product $product)
+    public function edit(Product $product, PostingTaskService $tasks)
     {
+        $product->load(['prices', 'postings.poster', 'postings.corrector']);
+
         return view('marketplace.products.edit', $this->formData() + [
-            'product' => $product->load('prices'),
+            'product'      => $product,
+            'targetStores' => $tasks->targetStores($product),
+            'postingMap'   => $product->postings->keyBy('store_id'),
         ]);
     }
-
     public function update(Request $request, Product $product, PostingTaskService $tasks)
     {
         $data = $this->validated($request, $product);
@@ -111,6 +119,70 @@ class ProductController extends Controller
         }
 
         return redirect()->route('marketplace.products.index')->with('ok', $msg);
+    }
+
+    /**
+     * Koreksi status posting per toko — CEO only (input mundur / perbaikan data).
+     * posted_by = null → TIDAK dikreditkan ke PIC manapun (metrik produktivitas tetap jujur).
+     */
+    public function updatePostings(Request $request, Product $product, PostingTaskService $tasks)
+    {
+        abort_unless($request->user()->role->isCeo(), 403, 'Hanya CEO yang bisa mengubah status posting.');
+
+        $data = $request->validate([
+            'posted_stores'   => ['nullable', 'array'],
+            'posted_stores.*' => ['exists:stores,id'],
+        ]);
+
+        $targetIds = $tasks->targetStores($product)->pluck('id')->all();
+        // Hanya toko target brand ini yang boleh disentuh — centangan lain diabaikan.
+        $checked = array_intersect(array_map('intval', $data['posted_stores'] ?? []), $targetIds);
+
+        $added = 0; $removed = 0;
+
+        DB::transaction(function () use ($request, $product, $checked, $targetIds, &$added, &$removed) {
+            $existing = \App\Models\Posting::where('product_id', $product->id)
+                ->whereIn('store_id', $targetIds)->pluck('id', 'store_id');
+
+            foreach ($targetIds as $storeId) {
+                $has    = $existing->has($storeId);
+                $should = in_array($storeId, $checked, true);
+
+                if ($should && ! $has) {
+                    \App\Models\Posting::create([
+                        'product_id'   => $product->id,
+                        'store_id'     => $storeId,
+                        'posted_by'    => null,                 // tetap null — nol kredit PIC
+                        'corrected_by' => $request->user()->id, // jejak: siapa yang koreksi
+                        'posted_at'    => now(),
+                    ]);
+                    // Tugas posting pending jadi tak relevan → buang dari antrian PIC
+                    MarketplaceTask::where('product_id', $product->id)
+                        ->where('store_id', $storeId)
+                        ->where('type', MarketplaceTask::TYPE_POSTING)
+                        ->where('status', MarketplaceTask::STATUS_PENDING)
+                        ->delete();
+                    $added++;
+                } elseif (! $should && $has) {
+                    \App\Models\Posting::where('product_id', $product->id)
+                        ->where('store_id', $storeId)->delete();
+                    $removed++;
+
+                    // Munculkan lagi tugas posting buat PIC toko ini (kalau belum ada).
+                    MarketplaceTask::firstOrCreate(
+                        [
+                            'type'       => MarketplaceTask::TYPE_POSTING,
+                            'product_id' => $product->id,
+                            'store_id'   => $storeId,
+                            'status'     => MarketplaceTask::STATUS_PENDING,
+                        ],
+                        ['created_at' => now(), 'note' => 'Dibuat ulang — status posting dikoreksi CEO']
+                    );
+                }
+            }
+        });
+
+        return back()->with('ok', "Status posting {$product->name}: {$added} ditandai posting, {$removed} dicabut.");
     }
 
     /** Arsip / aktifkan lagi + set produk pengganti. */

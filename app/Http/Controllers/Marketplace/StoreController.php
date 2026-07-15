@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Marketplace;
 
 use App\Http\Controllers\Controller;
 use App\Models\Store;
-use App\Models\User;
 use Illuminate\Http\Request;
 
 class StoreController extends Controller
@@ -12,7 +11,7 @@ class StoreController extends Controller
     public function index()
     {
         return view('marketplace.stores.index', [
-            'stores' => Store::with('pics')->orderBy('marketplace')->orderBy('name')->get(),
+            'stores' => Store::orderBy('marketplace')->orderBy('name')->get(),
         ]);
     }
 
@@ -28,8 +27,7 @@ class StoreController extends Controller
     public function edit(Store $store)
     {
         return view('marketplace.stores.edit', [
-            'store' => $store->load('pics'),
-            'users' => User::where('is_active', true)->orderBy('name')->get(),
+            'store' => $store,
         ]);
     }
 
@@ -39,7 +37,6 @@ class StoreController extends Controller
         $data['is_active'] = $request->boolean('is_active');
 
         $store->update($data);
-        $store->pics()->sync($request->input('pics', []));
 
         return redirect()->route('marketplace.stores.index')->with('ok', "Toko {$store->name} diperbarui.");
     }
@@ -54,7 +51,7 @@ class StoreController extends Controller
     public function trash()
     {
         return view('marketplace.stores.index', [
-            'stores'    => Store::onlyTrashed()->with('pics')->orderBy('deleted_at')->get(),
+            'stores'    => Store::onlyTrashed()->orderBy('deleted_at')->get(),
             'trashView' => true,
         ]);
     }
@@ -86,17 +83,16 @@ class StoreController extends Controller
     protected function validated(Request $request): array
     {
         $data = $request->validate([
-            'name'        => ['required', 'string', 'max:100'],
-            'marketplace' => ['required', 'string', 'max:50'],
-            'pics'        => ['nullable', 'array'],
-            'pics.*'      => ['exists:users,id'],
+            'name'             => ['required', 'string', 'max:100'],
+            'marketplace'      => ['required', 'string', 'max:50'],
+            'account_email'    => ['nullable', 'string', 'max:150'],
+            'account_phone'    => ['nullable', 'string', 'max:20'],
+            'account_password' => ['nullable', 'string', 'max:1000'],
         ]);
 
         // Normalisasi: "Shopee"/"SHOPEE"/"shopee" = satu grup di laporan
         $data['marketplace'] = strtolower(trim($data['marketplace']));
         $data['is_mall']     = $request->boolean('is_mall');
-
-        unset($data['pics']);
 
         return $data;
     }

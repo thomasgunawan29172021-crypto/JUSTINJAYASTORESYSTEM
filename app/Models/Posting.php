@@ -9,7 +9,7 @@ class Posting extends Model
 {
     public $timestamps = false;
 
-    protected $fillable = ['product_id', 'store_id', 'posted_by', 'posted_at'];
+    protected $fillable = ['product_id', 'store_id', 'posted_by', 'corrected_by', 'posted_at'];
 
     protected $casts = ['posted_at' => 'datetime'];
 
@@ -26,5 +26,10 @@ class Posting extends Model
     public function poster(): BelongsTo
     {
         return $this->belongsTo(User::class, 'posted_by');
+    }
+
+    public function corrector(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'corrected_by');
     }
 }

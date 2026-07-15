@@ -209,15 +209,24 @@ class MarketplaceDashboardController extends Controller
             ]);
         }
 
-        // PIC brand belum di-assign
+        // Brand belum ada toko sama sekali — kasus paling awal, brand baru dibikin nganggur total.
+        $brandsNoStore = \App\Models\Brand::whereDoesntHave('stores')->get();
+        if ($brandsNoStore->count() > 0) {
+            $alerts->push([
+                'level' => 'red',
+                'msg'   => "Brand belum dipetakan ke toko manapun: " . $brandsNoStore->pluck('name')->join(', ') . ".",
+            ]);
+        }
+
+        // Brand SUDAH ada toko tapi belum ada PIC — beda kasus dari di atas.
         $brandsNoPic = \App\Models\Brand::with('stores')
-            ->whereDoesntHave('pics')
+            ->whereDoesntHave('storePics')
             ->whereHas('stores')
             ->get();
         if ($brandsNoPic->count() > 0) {
             $alerts->push([
                 'level' => 'yellow',
-                'msg'   => "Brand belum punya PIC: " . $brandsNoPic->pluck('name')->join(', ') . ".",
+                'msg'   => "Brand punya toko tapi belum ada PIC: " . $brandsNoPic->pluck('name')->join(', ') . ".",
             ]);
         }
 

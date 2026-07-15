@@ -102,8 +102,10 @@
                             $target = ($targetPerBrand ?? collect())[$p->brand_id] ?? 0;
                         @endphp
                         <td class="px-3 py-2.5 whitespace-nowrap">
-                            <span class="font-semibold {{ $target > 0 && $posted >= $target ? 'text-emerald-700' : ($posted === 0 ? 'text-rose-600' : 'text-amber-600') }}">
-                                {{ $posted }}</span><span class="text-slate-400 text-xs">/{{ $target }}</span>
+                            <button type="button" data-posted-open="pm-{{ $p->id }}"
+                                    class="font-semibold hover:underline {{ $target > 0 && $posted >= $target ? 'text-emerald-700' : ($posted === 0 ? 'text-rose-600' : 'text-amber-600') }}">
+                                {{ $posted }}<span class="text-slate-400 text-xs font-normal">/{{ $target }}</span>
+                            </button>
                         </td>
                         <td class="px-3 py-2.5 text-slate-500">{{ $rp($p->cost_price) }}</td>
                         <td class="px-3 py-2.5">{{ $rp($p->price_offline) }}</td>
@@ -149,4 +151,71 @@
     @unless($trashView ?? false)
         <div class="mt-4">{{ $products->links() }}</div>
     @endunless
+    {{-- Modal detail posting per produk (read-only; edit di halaman Edit Produk) --}}
+    @foreach($products as $p)
+        <div id="pm-{{ $p->id }}" data-posted-modal class="hidden fixed inset-0 z-50 items-center justify-center p-4" style="background:rgba(15,23,42,.45);">
+            <div class="bg-white rounded-2xl border border-slate-200 w-full max-w-lg max-h-[80vh] overflow-y-auto p-5">
+                <div class="flex items-start justify-between gap-2 mb-3">
+                    <div>
+                        <h3 class="font-bold">{{ $p->name }}</h3>
+                        <p class="text-xs text-slate-400">{{ $p->brand->name }} · sudah posting di mana saja</p>
+                    </div>
+                    <button type="button" data-posted-close class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 shrink-0">×</button>
+                </div>
+
+                @php $pmap = $p->postings->keyBy('store_id'); $tstores = $p->brand->stores; @endphp
+                @if($tstores->isEmpty())
+                    <p class="text-sm text-amber-600">Brand ini belum dipetakan ke toko manapun.</p>
+                @else
+                    <table class="w-full text-sm">
+                        <thead class="text-left text-xs text-slate-400">
+                            <tr><th class="py-1.5">Toko</th><th>Status</th><th>Oleh</th><th>Tanggal</th></tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            @foreach($tstores as $s)
+                                @php $post = $pmap[$s->id] ?? null; @endphp
+                                <tr>
+                                    <td class="py-2">{{ $s->label() }}</td>
+                                    <td class="py-2">
+                                        @if($post)
+                                            <span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] font-semibold">sudah</span>
+                                        @else
+                                            <span class="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[10px] font-semibold">belum</span>
+                                        @endif
+                                    </td>
+                                    <td class="py-2 text-xs">{{ $post ? ($post->poster?->name ?? $post->corrector?->name ?? '—') : '—' }}</td>
+                                    <td class="py-2 text-xs text-slate-400">{{ $post?->posted_at?->format('d/m/Y') ?? '—' }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @endif
+
+                <a href="{{ route('marketplace.products.edit', $p) }}"
+                   class="inline-block mt-4 text-xs font-semibold text-emerald-700 hover:underline">✎ Ubah status posting di halaman Edit →</a>
+            </div>
+        </div>
+    @endforeach
+
+    <script>
+    (function () {
+        function close() {
+            document.querySelectorAll('[data-posted-modal]').forEach(function (m) {
+                m.classList.add('hidden'); m.classList.remove('flex');
+            });
+        }
+        document.querySelectorAll('[data-posted-open]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                close();
+                var m = document.getElementById(b.getAttribute('data-posted-open'));
+                if (m) { m.classList.remove('hidden'); m.classList.add('flex'); }
+            });
+        });
+        document.querySelectorAll('[data-posted-close]').forEach(function (b) { b.addEventListener('click', close); });
+        document.querySelectorAll('[data-posted-modal]').forEach(function (m) {
+            m.addEventListener('click', function (e) { if (e.target === m) close(); });
+        });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+    })();
+    </script>
 @endsection

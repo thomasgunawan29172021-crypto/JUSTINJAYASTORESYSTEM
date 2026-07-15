@@ -60,7 +60,6 @@
                 <tr>
                     <th class="px-4 py-3">Toko</th>
                     <th class="px-4 py-3">Marketplace</th>
-                    <th class="px-4 py-3">PIC</th>
                     <th class="px-4 py-3">Status</th>
                     <th class="px-4 py-3 text-right">Aksi</th>
                 </tr>
@@ -75,9 +74,6 @@
                             @endif
                         </td>
                         <td class="px-4 py-3">{{ ucfirst($s->marketplace) }}</td>
-                        <td class="px-4 py-3 text-xs text-slate-600">
-                            {{ $s->pics->pluck('name')->join(', ') ?: '—' }}
-                        </td>
                         <td class="px-4 py-3">
                             <span class="px-2 py-0.5 rounded-full text-[11px] font-medium {{ $s->is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600' }}">
                                 {{ $s->is_active ? 'Aktif' : 'Nonaktif' }}
@@ -100,7 +96,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="px-4 py-8 text-center text-slate-400">Belum ada toko.</td></tr>
+                    <tr><td colspan="4" class="px-4 py-8 text-center text-slate-400">Belum ada toko.</td></tr>
                 @endforelse
             </tbody>
         </table>

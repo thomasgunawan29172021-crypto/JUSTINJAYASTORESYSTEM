@@ -216,6 +216,7 @@ Route::middleware(['auth', 'active'])->group(function () {
             Route::get('/products/export',            [ProductController::class, 'export'])->name('products.export');
             Route::get('/products/trash',             [ProductController::class, 'trash'])->name('products.trash');
             Route::delete('/products/trash/clear',    [ProductController::class, 'clearTrash'])->name('products.trash.clear');
+            Route::put('/products/{product}/postings', [ProductController::class, 'updatePostings'])->name('products.postings.update');
             Route::get('/products/{product}/edit',    [ProductController::class, 'edit'])->name('products.edit');
             Route::put('/products/{product}',         [ProductController::class, 'update'])->name('products.update');
             Route::patch('/products/{product}/archive', [ProductController::class, 'archive'])->name('products.archive');
