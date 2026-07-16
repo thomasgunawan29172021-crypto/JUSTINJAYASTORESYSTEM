@@ -11,11 +11,13 @@ class AttendanceController extends Controller
 {
     public function index(Request $request)
     {
-        $user = $request->user();
+        $user     = $request->user();
+        $schedule = $user->workSchedule;
 
         return view('attendance.index', [
-            'schedule' => $user->workSchedule,
-            'branch'   => $user->branch,
+            'schedule'      => $schedule,
+            'todaySchedule' => $schedule?->dayFor(now()->dayOfWeek),
+            'branch'        => $user->branch,
             'today'    => Attendance::where('user_id', $user->id)
                 ->whereDate('work_date', today())->first(),
             'history'  => Attendance::where('user_id', $user->id)
