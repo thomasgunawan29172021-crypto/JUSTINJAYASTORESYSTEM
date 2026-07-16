@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Branch extends Model
@@ -19,9 +20,16 @@ class Branch extends Model
         return $this->hasMany(ServiceTicket::class);
     }
 
+    /** User yang menjadikan cabang ini sebagai cabang utama. */
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    /** Semua user yang boleh absen di cabang ini, termasuk sebagai cabang kedua. */
+    public function assignedUsers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'branch_user')->withTimestamps();
     }
 
     /** Jarak titik (lat,lng) ke cabang, dalam meter (haversine). Null kalau koordinat cabang belum diset. */

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\UserRole;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -26,11 +27,18 @@ class User extends Authenticatable
         ];
     }
 
+    /** Cabang utama/default. Dipertahankan agar fitur lama tetap kompatibel. */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
     }
-    
+
+    /** Semua cabang tempat akun ini diizinkan melakukan absensi. */
+    public function branches(): BelongsToMany
+    {
+        return $this->belongsToMany(Branch::class, 'branch_user')->withTimestamps();
+    }
+
     public function workSchedule(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(WorkSchedule::class);
@@ -45,6 +53,7 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Store::class, 'store_user');
     }
+
     public function brands(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
         return $this->belongsToMany(Brand::class, 'brand_user');

@@ -19,14 +19,21 @@
                     <th class="px-4 py-3">Nama</th>
                     <th class="px-4 py-3">Kontak</th>
                     <th class="px-4 py-3">Role</th>
-                    <th class="px-4 py-3">Cabang</th>
+                    <th class="px-4 py-3">Cabang Absensi</th>
                     <th class="px-4 py-3">Status</th>
                     <th class="px-4 py-3 text-right">Aksi</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
                 @foreach($users as $u)
-                <tr class="hover:bg-slate-50 {{ ! $u->is_active ? 'opacity-50' : '' }}">
+                    @php
+                        $attendanceBranches = $u->branches;
+                        if ($u->branch && ! $attendanceBranches->contains('id', $u->branch->id)) {
+                            $attendanceBranches = $attendanceBranches->push($u->branch);
+                        }
+                        $attendanceBranches = $attendanceBranches->unique('id')->sortBy('name');
+                    @endphp
+                    <tr class="hover:bg-slate-50 {{ ! $u->is_active ? 'opacity-50' : '' }}">
                         <td class="px-4 py-3 text-slate-600">{{ $u->id }}</td>
                         <td class="px-4 py-3 font-semibold">
                             {{ $u->name }}
@@ -41,7 +48,16 @@
                             @endif
                         </td>
                         <td class="px-4 py-3">{{ $u->role->label() }}</td>
-                        <td class="px-4 py-3">{{ $u->branch?->code ?? '—' }}</td>
+                        <td class="px-4 py-3">
+                            @forelse($attendanceBranches as $branch)
+                                <span class="inline-flex items-center mb-1 mr-1 px-2 py-0.5 rounded-full text-[11px] font-medium
+                                    {{ $branch->id === $u->branch_id ? 'bg-emerald-100 text-emerald-800' : 'bg-sky-100 text-sky-800' }}">
+                                    {{ $branch->code }}{{ $branch->id === $u->branch_id ? ' · utama' : '' }}
+                                </span>
+                            @empty
+                                <span class="text-slate-400">—</span>
+                            @endforelse
+                        </td>
                         <td class="px-4 py-3">
                             @if($u->is_active)
                                 <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-medium">Aktif</span>

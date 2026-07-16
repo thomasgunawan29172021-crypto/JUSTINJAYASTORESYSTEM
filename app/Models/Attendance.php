@@ -11,7 +11,7 @@ class Attendance extends Model
     public const LATE_TOLERANCE_MIN = 5;
 
     protected $fillable = [
-        'user_id', 'work_date',
+        'user_id', 'branch_id', 'work_date',
         'clock_in_at', 'clock_in_lat', 'clock_in_lng', 'clock_in_distance_m', 'clock_in_photo',
         'late_minutes',
         'clock_out_at', 'clock_out_lat', 'clock_out_lng', 'clock_out_distance_m', 'clock_out_photo',
@@ -32,6 +32,12 @@ class Attendance extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** Cabang aktual tempat karyawan clock-in pada hari tersebut. */
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function corrections(): \Illuminate\Database\Eloquent\Relations\HasMany
