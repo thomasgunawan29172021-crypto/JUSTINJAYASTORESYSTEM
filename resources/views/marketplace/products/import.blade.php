@@ -37,7 +37,17 @@
         <div class="bg-white rounded-xl border border-slate-200 p-5 text-sm">
             <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-2">Format kolom (baris pertama)</h2>
             <p class="mb-2">Wajib: <code class="bg-slate-100 px-1 rounded">nama</code>, <code class="bg-slate-100 px-1 rounded">brand</code></p>
-            <p class="mb-2">Opsional: <code class="bg-slate-100 px-1 rounded">harga_beli</code>, <code class="bg-slate-100 px-1 rounded">harga_offline</code>, <code class="bg-slate-100 px-1 rounded">harga_grosir</code></p>
+            <p class="mb-2">
+                Identitas produk (opsional):
+                <code class="bg-slate-100 px-1 rounded">sku</code>,
+                <code class="bg-slate-100 px-1 rounded">barcode</code>
+            </p>
+            <p class="mb-2">
+                Harga (opsional):
+                <code class="bg-slate-100 px-1 rounded">harga_beli</code>,
+                <code class="bg-slate-100 px-1 rounded">harga_offline</code>,
+                <code class="bg-slate-100 px-1 rounded">harga_grosir</code>
+            </p>
             <p class="mb-2">Harga per marketplace (opsional):</p>
             <ul class="list-disc list-inside text-xs text-slate-600 space-y-0.5">
                 @foreach($marketplaces as $mp)
@@ -50,6 +60,10 @@
                     <li><code class="bg-slate-100 px-1 rounded">{{ $key }}</code></li>
                 @endforeach
             </ul>
+
+            <p class="text-[11px] text-slate-500 mt-3">
+                SKU dan barcode dibaca sebagai teks. Sel kosong tidak mengubah nilai lama. Saat mengedit di Excel, set kolom barcode ke format <b>Text</b> agar angka nol di depan tidak hilang.
+            </p>
 
             <p class="text-[11px] text-amber-600 mt-3">
                 ⚠️ Brand yang belum ada akan DIBUAT otomatis — pastikan ejaan konsisten ("Oppo" ≠ "OPPO" ≠ "Opo"),

@@ -273,12 +273,26 @@ class ProductController extends Controller
                     $product->restore(); // nama match produk di sampah → pulihkan, jangan crash
                 }
 
-                $product->fill([
+                $productData = [
                     'brand_id'      => $brand->id,
                     'cost_price'    => $num('harga_beli') ?? 0,
                     'price_offline' => $num('harga_offline') ?? 0,
                     'price_grosir'  => $num('harga_grosir') ?? 0,
-                ])->save();
+                ];
+
+                // SKU dan barcode diperlakukan sebagai string agar angka nol di depan tidak dibuang.
+                // Header lama tanpa kolom ini tetap aman; sel kosong juga tidak menimpa data yang sudah ada.
+                foreach (['sku', 'barcode'] as $field) {
+                    if (array_key_exists($field, $row)) {
+                        $value = trim((string) ($row[$field] ?? ''));
+
+                        if ($value !== '') {
+                            $productData[$field] = $value;
+                        }
+                    }
+                }
+
+                $product->fill($productData)->save();
 
                 $isNew ? $created++ : $updated++;
 
@@ -394,13 +408,13 @@ class ProductController extends Controller
         });
     }
 
-    /** Export CSV — kolom harga + matriks posting per toko (v/x). Round-trip aman. */
+    /** Export CSV — SKU, barcode, harga + matriks posting per toko (v/x). Round-trip aman. */
     public function export()
     {
         $marketplaces   = Store::where('is_active', true)->pluck('marketplace')->unique()->values();
         $postingColumns = $this->postingColumns();
 
-        $header = ['nama', 'brand', 'harga_beli', 'harga_offline', 'harga_grosir'];
+        $header = ['nama', 'brand', 'sku', 'barcode', 'harga_beli', 'harga_offline', 'harga_grosir'];
         foreach ($marketplaces as $mp) {
             $header[] = "{$mp}_mall";
             $header[] = "{$mp}_biasa";
@@ -417,7 +431,15 @@ class ProductController extends Controller
             fputcsv($out, $header, ',', '"', '');
 
             foreach ($products as $p) {
-                $row = [$p->name, $p->brand->name, $p->cost_price, $p->price_offline, $p->price_grosir];
+                $row = [
+                    $p->name,
+                    $p->brand->name,
+                    $p->sku ?? '',
+                    $p->barcode ?? '',
+                    $p->cost_price,
+                    $p->price_offline,
+                    $p->price_grosir,
+                ];
 
                 foreach ($marketplaces as $mp) {
                     $price = $p->prices->firstWhere('marketplace', $mp);
