@@ -231,7 +231,7 @@ class MarketplaceDashboardController extends Controller
         }
 
         /* ---------- Diskon alert (pindah dari dashboard utama) ---------- */
-        $discountAlerts = \App\Models\ProductDiscount::with('product')
+        $discountAlerts = \App\Models\ProductDiscount::with('stores:id,name')
             ->where('ends_at', '<=', now()->addDays(30))
             ->orderBy('ends_at')->get();
 

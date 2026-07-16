@@ -3,7 +3,15 @@
 @section('title', 'Approval Izin')
 
 @section('content')
-    <h1 class="text-xl font-bold mb-5">Approval Izin & Cuti</h1>
+    <div class="flex flex-wrap items-center justify-between gap-2 mb-5">
+        <h1 class="text-xl font-bold">Approval Izin & Cuti</h1>
+        @if(auth()->user()->role->isCeo())
+            <a href="{{ route('leaves.trash') }}"
+               class="rounded-lg bg-white border border-slate-300 px-4 py-2 text-sm font-semibold hover:border-rose-300 text-slate-600">
+                🗑 Sampah @if($trashCount)<span class="text-rose-500">({{ $trashCount }})</span>@endif
+            </a>
+        @endif
+    </div>
 
     <section class="mb-6">
         <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-2">
@@ -62,7 +70,16 @@
                                     class="rounded-lg bg-rose-500 hover:bg-rose-400 text-white text-sm font-semibold px-4 py-2">
                                 ✕ Tolak
                             </button>
+                            @if(auth()->user()->role->isCeo())
+                                <a href="#" onclick="event.preventDefault(); if(confirm('Hapus pengajuan ini? (buat pengajuan iseng/salah input)')) document.getElementById('del-pending-{{ $r->id }}').submit();"
+                                   class="text-xs font-semibold text-slate-400 hover:text-rose-500">🗑 Hapus</a>
+                            @endif
                         </form>
+                        @if(auth()->user()->role->isCeo())
+                            <form id="del-pending-{{ $r->id }}" method="POST" action="{{ route('leaves.manage.destroy', $r) }}" class="hidden">
+                                @csrf @method('DELETE')
+                            </form>
+                        @endif
                     </div>
                 @endforeach
             </div>
@@ -80,6 +97,13 @@
                     </span>
                     <span class="text-xs text-slate-400">
                         <span class="px-2 py-0.5 rounded-full text-[11px] font-medium {{ $r->status->color() }}">{{ $r->status->label() }}</span>
+                        @if(auth()->user()->role->isCeo())
+                            <form method="POST" action="{{ route('leaves.manage.destroy', $r) }}" class="inline"
+                                  onsubmit="return confirm('Hapus pengajuan {{ $r->user->name }}?{{ $r->status === \App\Enums\LeaveStatus::Approved ? ' Cuti ini SUDAH DISETUJUI — hari-harinya akan kembali dihitung ALPHA (kena potong gaji).' : '' }}')">
+                                @csrf @method('DELETE')
+                                <button class="text-rose-500 text-xs font-semibold hover:underline mr-2">Hapus</button>
+                            </form>
+                        @endif
                         oleh {{ $r->decider?->name ?? 'Sistem' }} · {{ $r->decided_at?->format('d/m H:i') }}
                     </span>
                 </div>

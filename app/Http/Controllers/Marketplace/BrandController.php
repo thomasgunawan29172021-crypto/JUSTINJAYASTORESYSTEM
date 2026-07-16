@@ -10,10 +10,16 @@ use Illuminate\Validation\Rule;
 
 class BrandController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         return view('marketplace.brands.index', [
-            'brands' => Brand::with('stores')->orderBy('name')->get(),
+            // pics WAJIB ikut eager load: blade memanggilnya per baris (sumber N+1/lag).
+            'brands' => Brand::with(['stores', 'pics'])
+                ->when($request->filled('q'),
+                    fn ($q) => $q->where('name', 'like', '%'.trim($request->string('q')).'%'))
+                ->orderBy('name')
+                ->paginate(10)
+                ->withQueryString(),
         ]);
     }
 
@@ -99,7 +105,8 @@ class BrandController extends Controller
     public function trash()
     {
         return view('marketplace.brands.index', [
-            'brands'    => Brand::onlyTrashed()->with('stores')->orderBy('deleted_at')->get(),
+            'brands'    => Brand::onlyTrashed()->with(['stores', 'pics'])
+                ->orderBy('deleted_at')->paginate(10),
             'trashView' => true,
         ]);
     }

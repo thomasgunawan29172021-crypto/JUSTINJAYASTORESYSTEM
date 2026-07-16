@@ -42,6 +42,9 @@ class ProductController extends Controller
             })
             ->when($request->filled('brand_id'),
                 fn ($q) => $q->where('brand_id', (int) $request->input('brand_id')))
+            ->when($request->filled('store_id'),
+                fn ($q) => $q->whereHas('postings',
+                    fn ($p) => $p->where('store_id', (int) $request->input('store_id'))))
             ->orderBy($col, $dir)
             ->paginate(15)
             ->withQueryString();
@@ -65,6 +68,7 @@ class ProductController extends Controller
             'marketplaces'   => Store::where('is_active', true)->pluck('marketplace')->unique()->values(),
             'postedCounts'   => $postedCounts,
             'targetPerBrand' => $targetPerBrand,
+            'stores'         => Store::where('is_active', true)->orderBy('marketplace')->orderBy('name')->get(),
         ]);
     }
 

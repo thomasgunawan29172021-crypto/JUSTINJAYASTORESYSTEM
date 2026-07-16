@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\MarketplaceTask;
 use App\Models\Posting;
 use App\Models\BrandStorePic;
+use App\Models\Brand;
+use App\Models\Store;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -33,6 +35,9 @@ class TaskController extends Controller
 
         // SATU kata kunci untuk dua daftar: antrian pending DAN riwayat selesai.
         $q = trim($request->string('q')->toString());
+        // Filter toko & brand (permintaan Thomas — biar gampang melacak).
+        $storeId = (int) $request->input('store_id');
+        $brandId = (int) $request->input('brand_id');
 
         $pending = MarketplaceTask::with(['product.brand', 'product.prices', 'store'])
             ->where('status', MarketplaceTask::STATUS_PENDING)
@@ -47,6 +52,9 @@ class TaskController extends Controller
             }))
             ->when($q !== '', fn ($qq) => $qq->whereHas('product',
                 fn ($p) => $p->where('name', 'like', "%{$q}%")))
+            ->when($storeId, fn ($qq) => $qq->where('store_id', $storeId))
+            ->when($brandId, fn ($qq) => $qq->whereHas('product',
+                fn ($p) => $p->where('brand_id', $brandId)))
             ->when($since, fn ($qq) => $qq->where('created_at', '>=', $since))
             ->orderByRaw('pinned_at IS NULL')
             ->orderByDesc('pinned_at')
@@ -64,9 +72,24 @@ class TaskController extends Controller
             // milik produk terhapus tak akan ketemu padahal barisnya tetap tampil.
             ->when($q !== '', fn ($qq) => $qq->whereHas('product',
                 fn ($p) => $p->withTrashed()->where('name', 'like', "%{$q}%")))
+            ->when($storeId, fn ($qq) => $qq->where('store_id', $storeId))
+            ->when($brandId, fn ($qq) => $qq->whereHas('product',
+                fn ($p) => $p->withTrashed()->where('brand_id', $brandId)))
             ->orderByDesc('completed_at')
             ->paginate(10, ['*'], 'done_page')
             ->withQueryString();
+
+            // CEO lihat semua; PIC hanya toko & brand yang dia pegang — biar tak ada
+            // opsi yang sudah pasti nihil hasilnya.
+            if ($isCeo) {
+                $stores = Store::where('is_active', true)->orderBy('marketplace')->orderBy('name')->get();
+                $brands = Brand::orderBy('name')->get();
+            } else {
+                $picRows = BrandStorePic::where('user_id', $user->id)->get(['brand_id', 'store_id']);
+                $stores  = Store::whereIn('id', $picRows->pluck('store_id')->unique())
+                    ->orderBy('marketplace')->orderBy('name')->get();
+                $brands  = Brand::whereIn('id', $picRows->pluck('brand_id')->unique())->orderBy('name')->get();
+            }
 
         return view('marketplace.tasks.index', [
             'pending'    => $pending,
@@ -74,6 +97,10 @@ class TaskController extends Controller
             'isCeo'      => $isCeo,
             'range'      => $range,
             'q'          => $q,
+            'stores'     => $stores,
+            'brands'     => $brands,
+            'storeId'    => $storeId,
+            'brandId'    => $brandId,
         ]);
     }
 

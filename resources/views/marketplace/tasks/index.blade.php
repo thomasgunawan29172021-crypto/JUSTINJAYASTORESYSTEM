@@ -21,10 +21,22 @@
                    placeholder="Cari produk… (ketik = saring antrian, Enter = cari riwayat juga)"
                    class="w-full rounded-xl border border-slate-300 bg-white pl-9 pr-9 py-2.5 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100">
             @if($q)
-                <a href="{{ route('marketplace.tasks.index', array_filter(['range' => $range])) }}"
+                <a href="{{ route('marketplace.tasks.index', array_filter(['range' => $range, 'store_id' => $storeId, 'brand_id' => $brandId])) }}"
                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500">✕</a>
             @endif
         </div>
+        <select name="store_id" class="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm">
+            <option value="">Semua toko</option>
+            @foreach($stores as $s)
+                <option value="{{ $s->id }}" @selected($storeId == $s->id)>{{ $s->label() }}</option>
+            @endforeach
+        </select>
+        <select name="brand_id" class="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm">
+            <option value="">Semua brand</option>
+            @foreach($brands as $b)
+                <option value="{{ $b->id }}" @selected($brandId == $b->id)>{{ $b->name }}</option>
+            @endforeach
+        </select>
         <select name="range" onchange="this.form.submit()"
                 class="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm">
             <option value="" @selected($range === '')>Semua waktu</option>

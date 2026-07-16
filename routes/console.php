@@ -12,4 +12,5 @@ Schedule::command('attendance:auto-close')->dailyAt('23:49');
 Schedule::command('attendance:purge-photos')->dailyAt('01:30');
 Schedule::command('leaves:expire')->dailyAt('00:15');
 Schedule::command('marketplace:purge-trash')->dailyAt('02:00');
+Schedule::command('leaves:purge-trash')->dailyAt('02:30');
 Schedule::command('sosmed:freeze-stale')->dailyAt('01:00');

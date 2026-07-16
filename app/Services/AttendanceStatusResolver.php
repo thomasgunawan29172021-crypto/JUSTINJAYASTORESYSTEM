@@ -65,7 +65,7 @@ class AttendanceStatusResolver
             return null;
         }
 
-        if ($date->dayOfWeek === (int) $schedule->off_day) {
+        if ($schedule->isOffDay($date->dayOfWeek)) {
             return self::OFF;
         }
 
@@ -119,10 +119,10 @@ class AttendanceStatusResolver
             return null;
         }
 
-        if ($date->dayOfWeek === (int) $schedule->off_day) {
+        if ($schedule->isOffDay($date->dayOfWeek)) {
             return self::OFF;
         }
-
+        
         return self::ALPHA;
     }
 

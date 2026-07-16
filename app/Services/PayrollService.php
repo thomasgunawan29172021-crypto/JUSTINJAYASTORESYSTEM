@@ -54,7 +54,7 @@ class PayrollService
         $offDays = 0;
         $statuses = [];
         for ($d = $start->copy(); $d->lte($end); $d->addDay()) {
-            if ($d->dayOfWeek === (int) $schedule->off_day) {
+            if ($schedule->isOffDay($d->dayOfWeek)) {
                 $offDays++;
             }
             $statuses[$d->toDateString()] = $this->resolver->resolve($user, $d->copy());

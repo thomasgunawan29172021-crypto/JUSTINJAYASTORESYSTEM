@@ -8,9 +8,12 @@
 
     @if($schedule)
         <p class="text-sm text-slate-500 mb-5">
-            Jadwal Anda: masuk <b>{{ substr($schedule->clock_in_time, 0, 5) }}</b>,
-            pulang <b>{{ substr($schedule->clock_out_time, 0, 5) }}</b>,
-            off hari <b>{{ $schedule->offDayName() }}</b>
+            @if($todaySchedule && $todaySchedule->clock_in_time)
+                Jadwal hari ini: masuk <b>{{ substr($todaySchedule->clock_in_time, 0, 5) }}</b>,
+                pulang <b>{{ substr($todaySchedule->clock_out_time, 0, 5) }}</b>
+            @else
+                <span class="text-sky-600 font-semibold">Hari ini libur</span> menurut jadwal Anda — boleh absen sukarela
+            @endif
             @if($branch) · {{ $branch->name }} (radius {{ $branch->geofence_radius_m }} m) @endif
         </p>
     @else

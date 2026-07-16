@@ -87,6 +87,12 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::middleware('manager')->group(function () {
         Route::get('/leaves/manage',         [LeaveApprovalController::class, 'index'])->name('leaves.manage');
         Route::post('/leaves/{leave}/decide', [LeaveApprovalController::class, 'decide'])->name('leaves.decide');
+        Route::delete('/leaves/{leave}/remove', [LeaveApprovalController::class, 'destroy'])->name('leaves.manage.destroy');
+
+        Route::get('/leaves-trash',                [LeaveApprovalController::class, 'trash'])->name('leaves.trash');
+        Route::patch('/leaves-trash/{id}/restore', [LeaveApprovalController::class, 'restore'])->name('leaves.trash.restore');
+        Route::delete('/leaves-trash/{id}',        [LeaveApprovalController::class, 'forceDelete'])->name('leaves.trash.destroy');
+        Route::delete('/leaves-trash',              [LeaveApprovalController::class, 'clearTrash'])->name('leaves.trash.clear');
     });
 
     // ---------------- TUGAS MARKETPLACE (PIC toko + CEO) ----------------
@@ -97,12 +103,10 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('/marketplace/tasks/{task}/revise',   [TaskController::class, 'requestRevision'])->name('marketplace.tasks.revise');
 
     // ---------------- MODUL SERVICE ----------------
-    Route::prefix('service')->name('service.')->group(function () {
+    Route::middleware('service')->prefix('service')->name('service.')->group(function () {
 
         Route::get('/', [ServiceDashboardController::class, 'index'])->name('dashboard');
-        // CATATAN FASE PERMISSION: KPI berisi data finansial (omzet, modal, margin).
-        // Dulu dikunci role:kepala_toko — sekarang terbuka semua staf sesuai keputusan
-        // authorization rata. Kalau Thomas mau kunci lagi: tambah middleware di sini.
+        // KPI berisi data finansial (omzet, modal, margin) — ikut terkunci middleware 'service'.
         Route::get('/kpi', [KpiController::class, 'index'])->name('kpi');
 
         Route::get('/tickets', [TicketController::class, 'index'])->name('tickets.index');
@@ -168,7 +172,10 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('/attendance/corrections/{attendance}/retake', [AttendanceCorrectionController::class, 'requestRetake'])->name('attendance.corrections.retake');
 
         Route::get('/branches',          [BranchSettingController::class, 'index'])->name('branches.index');
+        Route::get('/branches/create',      [BranchSettingController::class, 'create'])->name('branches.create');
+        Route::post('/branches',            [BranchSettingController::class, 'store'])->name('branches.store');
         Route::put('/branches/{branch}', [BranchSettingController::class, 'update'])->name('branches.update');
+        Route::delete('/branches/{branch}', [BranchSettingController::class, 'destroy'])->name('branches.destroy');
 
         // Master platform sosmed. Prefix 'sosmed-platforms' (bukan nested di /sosmed)
         // supaya tidak ikut tertangkap middleware 'sosmed' yang scope-nya beda.

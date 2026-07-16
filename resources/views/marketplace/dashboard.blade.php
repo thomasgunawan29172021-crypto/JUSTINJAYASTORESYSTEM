@@ -49,11 +49,11 @@
             <ul class="text-xs text-amber-700 space-y-0.5">
                 @foreach($discountAlerts as $d)
                     <li>
-                        {{ $d->product->name }} — {{ $d->name }}:
+                        {{ $d->name }} <span class="text-amber-600">({{ $d->stores->pluck('name')->join(', ') ?: 'tanpa toko' }})</span>:
                         @if($d->hasEnded())
-                            <b class="text-rose-600">SUDAH BERAKHIR {{ $d->ends_at->translatedFormat('d M') }} — cabut diskonnya!</b>
+                            <b class="text-rose-600">SUDAH BERAKHIR {{ $d->ends_at->translatedFormat('d M H:i') }} — cabut diskonnya!</b>
                         @else
-                            berakhir {{ $d->ends_at->translatedFormat('d M Y') }}
+                            berakhir {{ $d->ends_at->translatedFormat('d M Y H:i') }}
                         @endif
                     </li>
                 @endforeach

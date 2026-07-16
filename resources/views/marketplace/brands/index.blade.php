@@ -43,6 +43,17 @@
     </form>
     @endunless
 
+    @unless($trashView ?? false)
+    <form method="GET" class="flex flex-wrap gap-2 mb-4 max-w-lg">
+        <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari nama brand…"
+               class="flex-1 min-w-48 rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
+        <button class="rounded-lg bg-slate-900 text-white px-4 py-2 text-sm font-semibold">Cari</button>
+        @if(request('q'))
+            <a href="{{ route('marketplace.brands.index') }}" class="self-center text-xs font-semibold text-rose-500 hover:underline">✕ reset</a>
+        @endif
+    </form>
+    @endunless
+
     <div class="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
         @forelse($brands as $b)
             <div class="px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-sm">
@@ -71,7 +82,11 @@
                 </div>
             </div>
         @empty
-            <p class="px-4 py-8 text-center text-sm text-slate-400">Belum ada brand.</p>
+            <p class="px-4 py-8 text-center text-sm text-slate-400">
+                {{ request('q') ? 'Tidak ada brand cocok dengan "'.request('q').'".' : 'Belum ada brand.' }}
+            </p>
         @endforelse
     </div>
+
+    <div class="mt-4">{{ $brands->links() }}</div>
 @endsection

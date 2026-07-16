@@ -16,7 +16,7 @@ class AttendanceRecapController extends Controller
     {
         $month = $this->month($request);
 
-        $users = User::with(['branch', 'workSchedule'])
+        $users = User::with(['branch', 'workSchedule.days'])
             ->where('is_active', true)
             ->when($request->filled('branch_id'),
                 fn ($q) => $q->where('branch_id', (int) $request->input('branch_id')))

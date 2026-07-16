@@ -10,6 +10,10 @@
         @unless($isCeo)
             <p class="text-slate-500 mt-1 mb-6">Selamat datang di Justin Jaya Store.</p>
 
+            @if($reminder)
+                <div id="attReminder" class="hidden mb-4 max-w-md rounded-xl px-4 py-3 text-sm font-semibold"></div>
+            @endif
+
             <a href="{{ route('attendance.index') }}"
             class="block max-w-md rounded-2xl bg-emerald-500 hover:bg-emerald-400 transition text-white p-6 shadow-lg shadow-emerald-500/20">
                 <div class="flex items-center gap-4">
@@ -21,6 +25,62 @@
                     <span class="ml-auto text-2xl">→</span>
                 </div>
             </a>
+
+            @if($reminder)
+                <script>
+                (function () {
+                    var clockIn = @json($reminder['clockInTime']);   // "09:00:00"
+                    var tol     = @json($reminder['toleranceMin']);  // 5
+                    var box     = document.getElementById('attReminder');
+                    if (!box) return;
+
+                    // Kelas dasar di-reset penuh tiap render — mencegah kelas warna lama
+                    // menumpuk saat fase geser (upcoming → now → late).
+                    var BASE = 'mb-4 max-w-md rounded-xl px-4 py-3 text-sm font-semibold';
+
+                    function parts(t) { var p = t.split(':'); return [+p[0], +p[1]]; }
+                    var hm = parts(clockIn), h = hm[0], m = hm[1];
+
+                    function scheduledToday() {
+                        var d = new Date();
+                        d.setHours(h, m, 0, 0);
+                        return d;
+                    }
+
+                    var STYLES = {
+                        upcoming: 'bg-sky-50 border border-sky-300 text-sky-700',
+                        now:      'bg-amber-50 border border-amber-300 text-amber-700',
+                        late:     'bg-rose-50 border border-rose-300 text-rose-700',
+                    };
+
+                    function render() {
+                        var now = new Date();
+                        var sched = scheduledToday();
+                        var toleranceEnd = new Date(sched.getTime() + tol * 60000);
+                        var reminderStart = new Date(sched.getTime() - 15 * 60000);
+
+                        var state = null;
+                        if (now >= reminderStart && now < sched) {
+                            state = ['upcoming', '⏰ Jangan lupa absen ya — jadwal masuk pukul ' + clockIn.slice(0,5) + '.'];
+                        } else if (now >= sched && now <= toleranceEnd) {
+                            state = ['now', '📍 Sudah waktunya absen — yuk clock-in sekarang.'];
+                        } else if (now > toleranceEnd) {
+                            state = ['late', '🔴 Anda telat, silakan absen segera. Kalau lupa absen, hubungi CEO.'];
+                        }
+
+                        if (state) {
+                            box.className = BASE + ' ' + STYLES[state[0]];
+                            box.textContent = state[1];
+                        } else {
+                            box.className = BASE + ' hidden';
+                        }
+                    }
+
+                    render();
+                    setInterval(render, 30000); // recompute tiap 30 detik, tanpa request server
+                })();
+                </script>
+            @endif
         @else
         <p class="text-slate-500 mt-1 mb-5">Pusat komando — ringkasan lintas modul.</p>
 
@@ -44,6 +104,16 @@
         @else
             <div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 font-semibold">
                 ✅ Semua modul dalam kondisi baik.
+            </div>
+        @endif
+
+        {{-- ===== CUTI PENDING (semua yang menunggu) ===== --}}
+        @if($pendingLeavesCount > 0)
+            <div class="mb-5 rounded-xl bg-amber-50 border border-amber-300 px-4 py-3 flex items-center justify-between gap-2">
+                <p class="text-sm font-bold text-amber-800">
+                    🟡 {{ $pendingLeavesCount }} pengajuan cuti/izin menunggu keputusan
+                </p>
+                <a href="{{ route('leaves.manage') }}" class="text-xs font-semibold text-amber-800 underline shrink-0">Tinjau sekarang →</a>
             </div>
         @endif
 

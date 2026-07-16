@@ -42,12 +42,13 @@ class AttendanceController extends Controller
             return back()->withErrors(['absen' => 'Anda sudah absen masuk hari ini.']);
         }
 
-        // Hari off sendiri: boleh absen (kerja sukarela), telat tidak dihitung
-        $isOffDay = now()->dayOfWeek === (int) $schedule->off_day;
+        // Jadwal per HARI (bukan lagi satu off_day tunggal) — cek jam hari ini spesifik.
+        $todayDay = $schedule->dayFor(now()->dayOfWeek);
+        $isOffDay = ! $todayDay || $todayDay->clock_in_time === null;
 
         $late = 0;
         if (! $isOffDay) {
-            $scheduled = today()->setTimeFromTimeString($schedule->clock_in_time);
+            $scheduled = today()->setTimeFromTimeString($todayDay->clock_in_time);
             // Menit MENTAH — toleransi 5 menit dinilai di Attendance::isLate(), bukan dibakar ke data
             $late = now()->greaterThan($scheduled) ? (int) $scheduled->diffInMinutes(now()) : 0;
         }

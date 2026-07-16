@@ -42,10 +42,11 @@
     <form method="GET" class="flex flex-wrap gap-2 mb-4">
         <input type="text" name="q" value="{{ request('q') }}" placeholder="Cari nama / barcode / SKU..."
                class="flex-1 min-w-48 rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
-        <select name="brand_id" class="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
-            <option value="">Semua brand</option>
-            @foreach($brands as $b)
-                <option value="{{ $b->id }}" @selected(request('brand_id') == $b->id)>{{ $b->name }}</option>
+        <select name="store_id" title="Tampilkan produk yang SUDAH diposting di toko ini"
+                class="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
+            <option value="">Semua toko</option>
+            @foreach($stores as $s)
+                <option value="{{ $s->id }}" @selected(request('store_id') == $s->id)>{{ $s->label() }}</option>
             @endforeach
         </select>
         <select name="sort" class="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white" onchange="this.form.submit()">

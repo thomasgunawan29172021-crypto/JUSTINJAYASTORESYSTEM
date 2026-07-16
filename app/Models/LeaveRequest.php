@@ -6,9 +6,12 @@ use App\Enums\LeaveStatus;
 use App\Enums\LeaveType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class LeaveRequest extends Model
 {
+    use SoftDeletes;
+
     /** Jatah cuti per tahun (hari) — default versi gw, Thomas bisa ubah kapan pun. */
     public const CUTI_QUOTA_DAYS = 12;
 

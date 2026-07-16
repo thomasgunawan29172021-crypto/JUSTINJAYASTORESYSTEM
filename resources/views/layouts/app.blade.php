@@ -15,14 +15,15 @@
         $isCeo     = $u->role->isCeo();
         $isManager = $u->role->isManager();
         $isFinance = $u->role->canAccessFinance();
+        $canService = $u->role->canAccessService();
         $isPic     = $u->brands()->exists();
 
         // [label, route name, boleh diakses?]
         $modules = [
             'servis' => ['label' => 'Servis', 'tiles' => [
-                ['Dashboard Servis', 'service.dashboard', true],
-                ['Tiket',            'service.tickets.index', true],
-                ['KPI',              'service.kpi', true],
+                ['Dashboard Servis', 'service.dashboard', $canService],
+                ['Tiket',            'service.tickets.index', $canService],
+                ['KPI',              'service.kpi', $canService],
             ]],
             'marketplace' => ['label' => 'Marketplace', 'tiles' => [
                 ['Tugas Saya',   'marketplace.tasks.index', $isCeo || $isPic],

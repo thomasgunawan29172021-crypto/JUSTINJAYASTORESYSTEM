@@ -57,4 +57,12 @@ enum UserRole: string
     {
         return in_array($this, [self::Ceo, self::Sosmed], true);
     }
+
+    /** Akses modul Service — role operasional toko + CEO (keputusan Thomas). */
+    public function canAccessService(): bool
+    {
+        return in_array($this, [
+            self::Ceo, self::KepalaToko, self::Frontliner, self::Teknisi, self::AdminChat,
+        ], true);
+    }
 }

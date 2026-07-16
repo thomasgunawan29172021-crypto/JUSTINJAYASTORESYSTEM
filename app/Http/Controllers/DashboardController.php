@@ -19,9 +19,24 @@ class DashboardController extends Controller
         $user  = $request->user();
         $isCeo = $user->role->isCeo();
 
-        // Staf biasa: cukup sapaan. Data komando hanya untuk CEO.
+        // Staf biasa: sapaan + reminder absen. Data komando hanya untuk CEO.
         if (! $isCeo) {
-            return view('dashboard', ['isCeo' => false]);
+            $schedule = $user->workSchedule;
+            $already  = \App\Models\Attendance::where('user_id', $user->id)
+                ->whereDate('work_date', today())->exists();
+
+            $todayDay = $schedule?->dayFor(now()->dayOfWeek);
+            $reminder = null;
+
+            if ($schedule && ! $already && $todayDay && $todayDay->clock_in_time
+                && ! ($schedule->effective_from && $schedule->effective_from->gt(today()))) {
+                $reminder = [
+                    'clockInTime'  => $todayDay->clock_in_time,
+                    'toleranceMin' => \App\Models\Attendance::LATE_TOLERANCE_MIN,
+                ];
+            }
+
+            return view('dashboard', ['isCeo' => false, 'reminder' => $reminder]);
         }
 
         /* ---------- SERVICE (operasional, bukan finansial) ---------- */
@@ -77,6 +92,9 @@ class DashboardController extends Controller
             ->where('status', 'pending')
             ->where('created_at', '<=', now()->subDays(3))
             ->get();
+
+        // Semua pending (bukan cuma yang nunggak) — biar CEO sigap sejak awal.
+        $pendingLeavesCount = LeaveRequest::where('status', 'pending')->count();
 
         /* ---------- CHART: 30 hari terakhir ---------- */
         $chartFrom = now()->subDays(29)->startOfDay();
@@ -135,6 +153,7 @@ class DashboardController extends Controller
             'isCeo'         => true,
             'alerts'        => $alerts,
             'overdueLeaves' => $overdueLeaves,
+            'pendingLeavesCount' => $pendingLeavesCount,
             'kpi' => [
                 'svcOpen' => $svcOpen, 'svcMacet7' => $svcMacet7,
                 'svcBelumKabar' => $svcBelumKabar, 'svcKonfirmasi' => $svcKonfirmasi,
