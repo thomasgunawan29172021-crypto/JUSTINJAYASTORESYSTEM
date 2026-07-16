@@ -76,7 +76,7 @@ class AttendanceCorrectionController extends Controller
         }
 
         $schedule = $user->workSchedule;
-        $isOff    = $schedule && $workDate->dayOfWeek === (int) $schedule->off_day;
+        $isOff    = $schedule && $schedule->isOffDay($workDate->dayOfWeek);
 
         $attendance = new Attendance([
             'user_id'      => $user->id,
@@ -126,12 +126,13 @@ class AttendanceCorrectionController extends Controller
     protected function recomputeLate(Attendance $attendance): int
     {
         $schedule = $attendance->user()->first()?->workSchedule;
+        $scheduleDay = $schedule?->dayFor($attendance->work_date->dayOfWeek);
 
-        if (! $schedule || $attendance->is_off_day) {
+        if (! $scheduleDay || $scheduleDay->clock_in_time === null || $attendance->is_off_day) {
             return 0;
         }
 
-        $scheduled = $attendance->work_date->copy()->setTimeFromTimeString($schedule->clock_in_time);
+        $scheduled = $attendance->work_date->copy()->setTimeFromTimeString($scheduleDay->clock_in_time);
 
         return $attendance->clock_in_at->greaterThan($scheduled)
             ? (int) $scheduled->diffInMinutes($attendance->clock_in_at)
