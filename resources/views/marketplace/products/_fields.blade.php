@@ -38,7 +38,7 @@
     </select>
 </div>
 
-<div class="grid sm:grid-cols-2 gap-3">
+<div class="grid sm:grid-cols-3 gap-3">
     <div>
         <label class="block text-xs font-semibold text-slate-600 mb-1">Kategori</label>
         <select name="category_id" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
@@ -48,21 +48,27 @@
             @endforeach
         </select>
         <p class="text-[11px] text-slate-400 mt-1">
-            Nentuin biaya admin &amp; ongkir yang dipakai buat harga rekomendasi.
+            Nentuin biaya admin &amp; program marketplace buat harga rekomendasi.
             @if($categories->isEmpty())
                 <span class="text-amber-600">Belum ada kategori — bikin dulu di Pengaturan Harga.</span>
             @endif
         </p>
     </div>
     <div>
-        <label class="block text-xs font-semibold text-slate-600 mb-1">Program / subsidi (%)</label>
-        <input type="text" inputmode="decimal" name="program_discount_percent"
-               value="{{ $pct(old('program_discount_percent', $p?->program_discount_percent)) }}"
-               placeholder="ikut default brand"
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Tambahan diskon (%)</label>
+        <input type="text" inputmode="decimal" name="program_extra_percent"
+               value="{{ $pct(old('program_extra_percent', $p?->program_extra_percent)) }}"
+               placeholder="—"
                class="percent-input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-        <p class="text-[11px] text-slate-400 mt-1">
-            Kosongkan = ikut default brand. Isi <b>0</b> kalau produk ini memang tidak dapat program.
-        </p>
+        <p class="text-[11px] text-slate-400 mt-1">Numpuk di atas program brand.</p>
+    </div>
+    <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Tambahan diskon (Rp)</label>
+        <input type="text" inputmode="numeric" name="program_extra_amount"
+               value="{{ $rp(old('program_extra_amount', $p?->program_extra_amount) ?? 0) }}"
+               placeholder="—"
+               class="rp-input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <p class="text-[11px] text-slate-400 mt-1">Dipotong paling akhir, setelah semua persen.</p>
     </div>
 </div>
 
@@ -170,21 +176,43 @@
         body.innerHTML = rows.map(function (r, i) {
             var label = '<span class="font-medium text-slate-600">' +
                         esc(r.marketplace) + ' · ' + esc(r.tier || '?') + '</span>';
+            var out;
 
             if (r.price == null) {
-                return '<div class="flex items-start justify-between gap-3 py-1.5 border-b border-slate-100">' +
-                       label + '<span class="text-amber-700 text-right">' + esc(r.error) + '</span></div>';
+                out = '<div class="flex items-start justify-between gap-3">' +
+                      label + '<span class="text-amber-700 text-right">' + esc(r.error) + '</span></div>';
+            } else {
+                var right = r.slot
+                    ? '<button type="button" data-reco-i="' + i + '" class="rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white text-[11px] font-bold px-2.5 py-1">pakai</button>'
+                    : '<span class="text-[11px] text-slate-400" title="tier ini belum punya kolom harga">belum ada slot</span>';
+
+                out = '<div class="flex items-center justify-between gap-3">' + label +
+                      '<span class="flex items-center gap-2"><b class="text-slate-800">Rp ' + group(r.price) + '</b>' + right + '</span>' +
+                      '</div>';
             }
 
-            var right = r.slot
-                ? '<button type="button" data-reco-i="' + i + '" class="rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white text-[11px] font-bold px-2.5 py-1">pakai</button>'
-                : '<span class="text-[11px] text-slate-400" title="price_mall/price_regular cuma dua kolom — tier ini belum punya slot">belum ada slot</span>';
+            /* Fase 3: untung/rugi dari harga yang DIKETIK — angka jadi, tanpa rincian biaya. */
+            if (r.evaluation) {
+                var e     = r.evaluation;
+                var rugi  = e.profit < 0;
+                var mar   = String(e.margin_percent).replace('.', ',');
+                out += '<div class="text-[11px] mt-0.5 ' + (rugi ? 'text-rose-600 font-semibold' : 'text-emerald-700') + '">' +
+                       'Kamu isi Rp ' + group(e.price) + ' → ' +
+                       (rugi ? '⚠ RUGI Rp ' + group(Math.abs(e.profit)) : 'untung Rp ' + group(e.profit)) +
+                       ' (' + mar + '%)</div>';
+            }
 
-            return '<div class="flex items-center justify-between gap-3 py-1.5 border-b border-slate-100">' +
-                   label +
-                   '<span class="flex items-center gap-2"><b class="text-slate-800">Rp ' + group(r.price) + '</b>' + right + '</span>' +
-                   '</div>';
+            return '<div class="py-1.5 border-b border-slate-100">' + out + '</div>';
         }).join('');
+    }
+
+    function typedPrices() {
+        var out = {};
+        form.querySelectorAll('[name^="mp["]').forEach(function (el) {
+            var m = el.getAttribute('name').match(/^mp\[(.+?)\]\[(.+?)\]$/);
+            if (m) out[m[1] + '|' + m[2]] = digits(el.value);
+        });
+        return out;
     }
 
     function refresh() {
@@ -196,7 +224,9 @@
                 brand_id:    val('brand_id'),
                 category_id: val('category_id'),
                 cost_price:  digits(val('cost_price')),
-                program_discount_percent: val('program_discount_percent').replace(',', '.')
+                program_extra_percent: val('program_extra_percent').replace(',', '.'),
+                program_extra_amount:  digits(val('program_extra_amount')),
+                prices:      typedPrices()
             })
         })
         .then(function (r) { return r.json(); })
@@ -207,20 +237,26 @@
     /* Debounce: Thomas ngetik "1500000" = 7 keystroke. Tanpa ini, 7 request. */
     function schedule() { clearTimeout(timer); timer = setTimeout(refresh, 400); }
 
-    ['brand_id', 'category_id', 'cost_price', 'program_discount_percent'].forEach(function (n) {
+    ['brand_id', 'category_id', 'cost_price', 'program_extra_percent', 'program_extra_amount'].forEach(function (n) {
         var el = q(n);
         if (!el) return;
         el.addEventListener('input', schedule);
         el.addEventListener('change', schedule);
     });
 
+    /* Ketik harga sendiri → untung/rugi ikut jalan. */
+    form.querySelectorAll('[name^="mp["]').forEach(function (el) {
+        el.addEventListener('input', schedule);
+    });
+
     body.addEventListener('click', function (e) {
         var b = e.target.closest('[data-reco-i]');
-        if (b) fill(rows[+b.getAttribute('data-reco-i')]);
+        if (b) { fill(rows[+b.getAttribute('data-reco-i')]); schedule(); }
     });
 
     applyAll.addEventListener('click', function () {
         rows.forEach(fill);
+        schedule();
     });
 
     refresh();

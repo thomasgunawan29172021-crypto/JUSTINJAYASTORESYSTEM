@@ -17,18 +17,6 @@
         </div>
 
         <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">Program / subsidi default (%)</label>
-            <input type="text" inputmode="decimal" name="program_discount_percent"
-                   value="{{ old('program_discount_percent', $brand->program_discount_percent === null ? '' : rtrim(rtrim(number_format((float) $brand->program_discount_percent, 2, ',', ''), '0'), ',')) }}"
-                   placeholder="0"
-                   class="percent-input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-            <p class="text-[11px] text-slate-400 mt-1">
-                Diskon dari supplier buat brand ini — dipotong dari modal sebelum hitung harga jual rekomendasi.
-                Contoh: Robot kasih 10%. Produk tertentu bisa di-override sendiri di form Produk.
-            </p>
-        </div>
-
-        <div>
             <p class="text-xs font-semibold text-slate-600 mb-1">Toko target & PIC per toko:</p>
             <p class="text-[11px] text-slate-400 mb-2">
                 Centang toko tempat brand ini diposting, lalu pilih SATU penanggung jawab per toko.

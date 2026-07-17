@@ -15,6 +15,7 @@ use App\Http\Controllers\Marketplace\MarketplaceDashboardController;
 use App\Http\Controllers\Marketplace\ProductController;
 use App\Http\Controllers\Marketplace\StoreController;
 use App\Http\Controllers\Marketplace\TaskController;
+use App\Http\Controllers\BrandProgramController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PricingSettingController;
 use App\Http\Controllers\Service\DashboardController as ServiceDashboardController;
@@ -201,6 +202,9 @@ Route::middleware(['auth', 'active'])->group(function () {
             Route::delete('/categories/{category}', [PricingSettingController::class, 'destroyCategory'])->name('categories.destroy');
 
             Route::put('/fees', [PricingSettingController::class, 'updateFees'])->name('fees.update');
+
+            Route::get('/brand-programs', [BrandProgramController::class, 'index'])->name('brand-programs.index');
+            Route::put('/brand-programs', [BrandProgramController::class, 'update'])->name('brand-programs.update');
         });
 
         Route::prefix('marketplace')->name('marketplace.')->group(function () {

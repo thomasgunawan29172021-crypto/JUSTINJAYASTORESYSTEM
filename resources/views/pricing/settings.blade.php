@@ -8,10 +8,6 @@
         $fmtPercent = fn ($v) => $v === null || $v === ''
             ? ''
             : rtrim(rtrim(number_format((float) $v, 2, ',', ''), '0'), ',');
-        // 10000 → "10.000", 0 → "0", null → ""
-        $fmtMoney = fn ($v) => $v === null || $v === ''
-            ? ''
-            : number_format((float) $v, 0, ',', '.');
     @endphp
     <h1 class="text-xl font-bold mb-1">Pengaturan Harga</h1>
     <p class="text-sm text-slate-500 mb-5">Aturan yang dipakai sistem buat ngitung harga jual rekomendasi.</p>
@@ -102,12 +98,13 @@
                     <p class="text-[11px] text-slate-400 mb-3">Toko: {{ implode(', ', $combo['store_names']) }}</p>
 
                     <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
+                        <table class="w-full text-sm min-w-[680px]">
                             <thead class="text-left text-xs text-slate-500 uppercase tracking-wide bg-slate-50">
                                 <tr>
                                     <th class="px-3 py-2">Kategori</th>
-                                    <th class="px-3 py-2 w-40">Biaya Admin (%)</th>
-                                    <th class="px-3 py-2 w-44">Ongkir (Rp)</th>
+                                    @foreach($feeFields as $label)
+                                        <th class="px-3 py-2 w-32">{{ ucfirst($label) }} (%)</th>
+                                    @endforeach
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
@@ -117,19 +114,15 @@
                                         $fee = $fees->get($key);
                                     @endphp
                                     <tr>
-                                        <td class="px-3 py-2 font-medium">{{ $cat->name }}</td>
-                                        <td class="px-3 py-2">
-                                            <input type="text" inputmode="decimal"
-                                                   name="fees[{{ $key }}][admin_percent]"
-                                                   value="{{ $fmtPercent($fee?->admin_percent) }}" placeholder="belum diisi"
-                                                   class="percent-input w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm">
-                                        </td>
-                                        <td class="px-3 py-2">
-                                            <input type="text" inputmode="numeric"
-                                                   name="fees[{{ $key }}][shipping_cost]"
-                                                   value="{{ $fmtMoney($fee?->shipping_cost) }}" placeholder="belum diisi"
-                                                   class="rp-input w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm">
-                                        </td>
+                                        <td class="px-3 py-2 font-medium whitespace-nowrap">{{ $cat->name }}</td>
+                                        @foreach($feeFields as $field => $label)
+                                            <td class="px-3 py-2">
+                                                <input type="text" inputmode="decimal"
+                                                       name="fees[{{ $key }}][{{ $field }}]"
+                                                       value="{{ $fmtPercent($fee?->$field) }}" placeholder="belum diisi"
+                                                       class="percent-input w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm">
+                                            </td>
+                                        @endforeach
                                     </tr>
                                 @endforeach
                             </tbody>

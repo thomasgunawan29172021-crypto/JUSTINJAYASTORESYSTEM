@@ -6,29 +6,37 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Biaya admin + ongkir untuk satu kombinasi (marketplace × tier toko × kategori).
+ * Potongan marketplace untuk satu kombinasi (marketplace × tier toko × kategori).
+ * SEMUANYA persen dari harga jual — ongkir nominal udah dibuang (Fase 3.5).
  *
  * marketplace & tier disimpan sebagai string, nilainya DISALIN dari kolom yang sama
- * di `stores` — bukan diketik ulang. Jangan pernah bikin form yang nyuruh orang
- * ngetik nama marketplace di sini; sekali beda huruf, lookup-nya meleset diam-diam.
+ * di `stores` — bukan diketik ulang. Sekali beda huruf, lookup meleset diam-diam.
  */
 class MarketplaceCategoryFee extends Model
 {
+    /** field => label buat pesan error. Urutannya = urutan kolom di form. */
+    public const PERCENT_FIELDS = [
+        'admin_percent'          => 'biaya admin',
+        'program_ongkir_percent' => 'program gratis ongkir',
+        'program_diskon_percent' => 'program diskon',
+        'program_ekstra_percent' => 'program ekstra diskon',
+    ];
+
     protected $fillable = [
-        'marketplace', 'tier', 'category_id', 'admin_percent', 'shipping_cost',
+        'marketplace', 'tier', 'category_id',
+        'admin_percent', 'program_ongkir_percent', 'program_diskon_percent', 'program_ekstra_percent',
     ];
 
     /**
-     * 'float', BUKAN 'decimal:2' — cast decimal Laravel ngembaliin STRING, dan itu
-     * bikin pengecekan di calculator jadi rawan. Nilai di sini paling banter 2 angka
-     * di belakang koma (mis. 7.50), jauh dari batas presisi float.
-     *
-     * null tetap null (cast di-skip untuk null) — dan itu WAJIB dipertahankan:
-     * null = "Thomas belum ngisi", 0 = "memang gratis". Dua hal beda.
+     * 'float', BUKAN 'decimal:2' — cast decimal Laravel ngembaliin STRING dan itu
+     * bikin pengecekan di calculator rawan. null tetap null (cast di-skip untuk null),
+     * dan itu WAJIB: null = "belum diisi", 0 = "gak ikut program / gratis".
      */
     protected $casts = [
-        'admin_percent' => 'float',
-        'shipping_cost' => 'integer',
+        'admin_percent'          => 'float',
+        'program_ongkir_percent' => 'float',
+        'program_diskon_percent' => 'float',
+        'program_ekstra_percent' => 'float',
     ];
 
     public function category(): BelongsTo
@@ -36,9 +44,27 @@ class MarketplaceCategoryFee extends Model
         return $this->belongsTo(Category::class);
     }
 
-    /** Baris ini siap dipakai hitung? Setengah keisi = belum siap. */
+    /** Field yang belum diisi — dipakai calculator buat nyebut persis apa yang kurang. */
+    public function missingFields(): array
+    {
+        return array_values(array_filter(
+            self::PERCENT_FIELDS,
+            fn (string $field) => $this->$field === null,
+            ARRAY_FILTER_USE_KEY
+        ));
+    }
+
     public function isComplete(): bool
     {
-        return $this->admin_percent !== null && $this->shipping_cost !== null;
+        return $this->missingFields() === [];
+    }
+
+    /** Total potongan marketplace (%) — admin + 3 program. */
+    public function totalPercent(): float
+    {
+        return array_sum(array_map(
+            fn (string $field) => (float) $this->$field,
+            array_keys(self::PERCENT_FIELDS)
+        ));
     }
 }

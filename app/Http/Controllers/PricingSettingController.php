@@ -14,14 +14,13 @@ class PricingSettingController extends Controller
 
     public function index()
     {
-        // Kombinasi diambil dari service — SUMBER YANG SAMA dengan yang dipakai
-        // mesin hitung. Jangan pernah bikin query kombinasi sendiri di sini:
-        // begitu dua-duanya beda, Thomas ngisi baris yang gak pernah dibaca.
+        // Kombinasi diambil dari service — SUMBER YANG SAMA dengan mesin hitung.
+        // Jangan bikin query kombinasi sendiri: begitu dua-duanya beda, Thomas ngisi
+        // baris yang gak pernah dibaca.
         $combos     = $this->calculator->activeCombos();
         $categories = Category::orderBy('name')->get();
 
-        // Prefetch semua fee dalam 1 query, di-index pakai kunci gabungan.
-        // Tanpa ini: (jumlah kombinasi × jumlah kategori) query — N+1 klasik.
+        // Prefetch semua fee dalam 1 query — tanpa ini (kombinasi × kategori) query.
         $fees = MarketplaceCategoryFee::get()
             ->keyBy(fn ($f) => $f->marketplace.'|'.$f->tier.'|'.$f->category_id);
 
@@ -30,6 +29,7 @@ class PricingSettingController extends Controller
             'categories' => $categories,
             'combos'     => $combos,
             'fees'       => $fees,
+            'feeFields'  => MarketplaceCategoryFee::PERCENT_FIELDS,
         ]);
     }
 
@@ -81,25 +81,28 @@ class PricingSettingController extends Controller
         return back()->with('ok', "Kategori {$category->name} dihapus.");
     }
 
-    /** Simpan grid biaya admin + ongkir sekaligus. */
+    /** Simpan grid biaya — semua kolom persen (ongkir nominal udah dibuang). */
     public function updateFees(Request $request)
     {
+        $fields = array_keys(MarketplaceCategoryFee::PERCENT_FIELDS);
+
         // Normalisasi SEBELUM validate. Kalau kebalik, Thomas dapet error validasi
-        // buat angka yang sebenernya bener menurut cara nulis Indonesia.
+        // buat angka yang bener menurut cara nulis Indonesia.
         $normalized = [];
         foreach ((array) $request->input('fees', []) as $key => $values) {
-            $normalized[$key] = [
-                'admin_percent' => $this->parseDecimal($values['admin_percent'] ?? null),
-                'shipping_cost' => $this->parseInteger($values['shipping_cost'] ?? null),
-            ];
+            $row = [];
+            foreach ($fields as $f) {
+                $row[$f] = $this->parseDecimal($values[$f] ?? null);
+            }
+            $normalized[$key] = $row;
         }
         $request->merge(['fees' => $normalized]);
 
-        $request->validate([
-            'fees'                 => ['array'],
-            'fees.*.admin_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'fees.*.shipping_cost' => ['nullable', 'numeric', 'min:0'],
-        ]);
+        $rules = ['fees' => ['array']];
+        foreach ($fields as $f) {
+            $rules["fees.*.{$f}"] = ['nullable', 'numeric', 'min:0', 'max:100'];
+        }
+        $request->validate($rules);
 
         // Dua-duanya ditarik SEKALI di luar loop.
         $categoryIds = Category::pluck('id');
@@ -122,11 +125,10 @@ class PricingSettingController extends Controller
                 continue;
             }
 
-            $isEmpty = $values['admin_percent'] === null && $values['shipping_cost'] === null;
+            $isEmpty = collect($fields)->every(fn ($f) => ($values[$f] ?? null) === null);
 
             // Kosong & belum pernah ada → jangan bikin baris sampah.
-            // Kosong TAPI barisnya ada → tetap disimpan, biar Thomas bisa
-            // ngosongin lagi angka yang salah.
+            // Kosong TAPI barisnya ada → tetap disimpan, biar Thomas bisa ngosongin lagi.
             if ($isEmpty && ! $existing->has($key)) {
                 continue;
             }
@@ -134,16 +136,9 @@ class PricingSettingController extends Controller
             [$marketplace, $tier, $categoryId] = explode('|', $key);
 
             MarketplaceCategoryFee::updateOrCreate(
-                [
-                    'marketplace' => $marketplace,
-                    'tier'        => $tier,
-                    'category_id' => (int) $categoryId,
-                ],
-                [
-                    // null tetap null — "belum diisi", BUKAN 0.
-                    'admin_percent' => $values['admin_percent'],
-                    'shipping_cost' => $values['shipping_cost'],
-                ]
+                ['marketplace' => $marketplace, 'tier' => $tier, 'category_id' => (int) $categoryId],
+                // null tetap null — "belum diisi", BUKAN 0.
+                array_intersect_key($values, array_flip($fields))
             );
 
             $saved++;
@@ -168,23 +163,5 @@ class PricingSettingController extends Controller
         }
 
         return str_replace(',', '.', $value);
-    }
-
-    /**
-     * Rupiah: "10.000" / "10,000" / "Rp 10.000" → "10000". Kosong → null.
-     * Rupiah gak pernah pecahan, jadi semua non-digit aman dibuang.
-     * "0" HARUS tetap "0" — itu gratis ongkir, bukan belum diisi.
-     */
-    protected function parseInteger(mixed $value): ?string
-    {
-        $value = trim((string) ($value ?? ''));
-
-        if ($value === '') {
-            return null;
-        }
-
-        $digits = preg_replace('/\D/', '', $value);
-
-        return $digits === '' ? null : $digits;
     }
 }

@@ -13,15 +13,14 @@ class Product extends Model
 
     protected $fillable = [
         'name', 'barcode', 'sku', 'brand_id', 'category_id', 'cost_price',
-        'program_discount_percent', 'price_offline', 'price_grosir',
-        'archived_at', 'replacement_product_id',
+        'program_extra_percent', 'program_extra_amount',
+        'price_offline', 'price_grosir', 'archived_at', 'replacement_product_id',
     ];
 
     protected $casts = [
-        'archived_at' => 'datetime',
-        // 'float' (bukan 'decimal:2') supaya null tetap null dan aritmetika di
-        // calculator gak kejebak string. Lihat catatan di MarketplaceCategoryFee.
-        'program_discount_percent' => 'float',
+        'archived_at'           => 'datetime',
+        'program_extra_percent' => 'float',
+        'program_extra_amount'  => 'integer',
     ];
 
     public function brand(): BelongsTo
@@ -56,26 +55,33 @@ class Product extends Model
     }
 
     /**
-     * Diskon program yang berlaku (%): override produk kalau ada, kalau tidak ikut brand.
+     * Modal setelah semua potongan program — ini "M" di rumus pricing.
      *
-     * PENTING — null ≠ 0 di sini:
-     *   null → produk ini gak punya pendapat, ikut default brand
-     *   0    → produk ini MEMANG gak dapet program, walau brand-nya dapet
-     * Jangan pernah tulis ($this->program_discount_percent ?: $brand) — operator `?:`
-     * nganggep 0 itu kosong dan bakal diem-diem ngasih diskon brand ke produk yang
-     * sengaja diset nol. Harus `??`, yang cuma nangkep null.
+     * BERTINGKAT, bukan dijumlah (keputusan Thomas). Tiap lapis dihitung dari SISA
+     * lapis sebelumnya:
+     *
+     *   10.000 × 0,90 = 9.000     ← potong depan brand 10%
+     *    9.000 × 0,95 = 8.550     ← potong belakang brand 5% (dari 9.000, bukan 10.000)
+     *    8.550 × 0,98 = 8.379     ← tambahan produk 2%
+     *    8.379 −  500 = 7.879     ← tambahan produk Rp 500
+     *
+     * Kalau dijumlah, hasilnya 8.500 — beda, dan salah.
+     *
+     * Nominal dipotong PALING AKHIR: potongan Rupiah gak kena persentase apa pun.
+     *
+     * Bisa balik NOL atau NEGATIF kalau potongannya kegedean. Sengaja gak di-clamp —
+     * PricingCalculatorService yang nolak dengan pesan jelas. Kalau di-clamp diam-diam
+     * ke 0, Thomas dapet harga jual ngaco tanpa tau kenapa.
      */
-    public function effectiveProgramDiscount(): float
-    {
-        return $this->program_discount_percent
-            ?? $this->brand?->program_discount_percent
-            ?? 0.0;
-    }
-
-    /** Modal setelah dipotong program — ini "M" di rumus pricing. */
     public function costAfterProgram(): float
     {
-        return $this->cost_price * (1 - $this->effectiveProgramDiscount() / 100);
+        $cost = (float) $this->cost_price;
+
+        $cost *= 1 - ($this->brand?->program_front_percent ?? 0) / 100;
+        $cost *= 1 - ($this->brand?->program_back_percent ?? 0) / 100;
+        $cost *= 1 - ($this->program_extra_percent ?? 0) / 100;
+
+        return $cost - (float) ($this->program_extra_amount ?? 0);
     }
 
     /** Harga yang berlaku untuk sebuah toko (mall/non-mall) — dipakai M2. */

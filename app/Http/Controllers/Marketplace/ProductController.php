@@ -459,61 +459,83 @@ class ProductController extends Controller
         }, 'produk-'.now()->format('Y-m-d-Hi').'.csv', ['Content-Type' => 'text/csv']);
     }
 
+    /** Pemetaan tier ↔ slot kolom harga. SATU-SATUNYA tempat mapping ini hidup. */
+    protected const SLOT_BY_TIER = ['mall' => 'mall', 'biasa' => 'regular'];
+
     /**
-     * Harga rekomendasi buat form Produk — dipanggil JS live saat Thomas ngetik.
+     * Harga rekomendasi + evaluasi untung/rugi — dipanggil JS live dari form Produk.
      *
-     * Sengaja lewat endpoint, BUKAN dihitung ulang di JavaScript: rumusnya cuma boleh
-     * hidup di SATU tempat (PricingCalculatorService). Kalau formula-nya dikembarin di
-     * JS, suatu hari dua-duanya beda dan Thomas lihat angka yang bukan angka sistem —
-     * tanpa ada error apa pun yang ngasih tau.
+     * Lewat endpoint, BUKAN dihitung di JavaScript: rumusnya cuma boleh hidup di SATU
+     * tempat (PricingCalculatorService). Kalau dikembarin di JS, suatu hari dua-duanya
+     * beda dan Thomas lihat angka yang bukan angka sistem — tanpa error apa pun.
      */
     public function priceRecommendation(Request $request, \App\Services\PricingCalculatorService $calculator)
     {
         abort_unless($request->user()->role->isCeo(), 403);
 
         $request->merge([
-            'program_discount_percent' => $this->parsePercent($request->input('program_discount_percent')),
+            'program_extra_percent' => $this->parsePercent($request->input('program_extra_percent')),
+            'program_extra_amount'  => $this->parseMoney($request->input('program_extra_amount')),
         ]);
 
         $data = $request->validate([
             'brand_id'    => ['nullable', 'exists:brands,id'],
             'category_id' => ['nullable', 'exists:categories,id'],
             'cost_price'  => ['nullable', 'integer', 'min:0'],
-            'program_discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'program_extra_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'program_extra_amount'  => ['nullable', 'integer', 'min:0'],
+            'prices'      => ['nullable', 'array'],
         ]);
 
         // Instance SEMENTARA — gak pernah kena ->save(). Ini yang bikin halaman
         // "Produk Baru" bisa nampilin rekomendasi sebelum produknya disimpan.
         $product = new Product([
-            'brand_id'    => $data['brand_id'] ?? null,
             'category_id' => $data['category_id'] ?? null,
             'cost_price'  => (int) ($data['cost_price'] ?? 0),
             // null ≠ 0 — jangan ?? 0 di sini.
-            'program_discount_percent' => $data['program_discount_percent'] ?? null,
+            'program_extra_percent' => $data['program_extra_percent'] ?? null,
+            'program_extra_amount'  => $data['program_extra_amount'] ?? null,
         ]);
 
-        $result = $calculator->calculate($product);
+        // Relasi di-set EKSPLISIT: costAfterProgram() butuh program brand, dan model
+        // ini gak pernah disimpan jadi jangan andelin lazy-load.
+        $product->setRelation('brand', $data['brand_id']
+            ? Brand::withTrashed()->find($data['brand_id'])
+            : null);
+
+        $typed = [];
+        foreach ((array) ($data['prices'] ?? []) as $key => $value) {
+            // JS ngirim key "marketplace|slot" (ikut nama kolom form). Diterjemahin ke
+            // "marketplace|tier" di sini — JS gak perlu tau soal tier sama sekali.
+            [$marketplace, $slot] = array_pad(explode('|', (string) $key, 2), 2, null);
+            $tier = array_search($slot, self::SLOT_BY_TIER, true);
+
+            if ($marketplace === null || $tier === false) {
+                continue;
+            }
+
+            $digits = preg_replace('/\D/', '', (string) $value);
+
+            if ($digits !== '' && (int) $digits > 0) {
+                $typed[$marketplace.'|'.$tier] = (int) $digits;
+            }
+        }
+
+        $result = $calculator->calculate($product, $typed);
 
         $rows = array_map(fn (array $row) => [
             'marketplace' => $row['marketplace'],
             'tier'        => $row['tier'],
             'price'       => $row['price'],
             'error'       => $row['error'],
-            // Pemetaan tier → slot input ditaruh di PHP, bukan JS — biar pas
-            // product_prices di-restructure nanti, cuma SATU tempat yang diubah.
-            //
-            // tier selain mall/biasa BELUM punya slot: price_mall & price_regular
-            // cuma dua kolom. Ditandai null → tombol "pakai" dimatikan, angkanya
-            // tetap ditampilkan. Ini utang yang ditunda, bukan dilupain.
-            'slot'        => match ($row['tier']) {
-                'mall'  => 'mall',
-                'biasa' => 'regular',
-                default => null,
-            },
+            'evaluation'  => $row['evaluation'],
+            // Tier selain mall/biasa BELUM punya slot: price_mall & price_regular cuma
+            // dua kolom. null → tombol "pakai" mati, angkanya tetap ditampilkan.
+            // Utang yang ditunda, bukan dilupain.
+            'slot'        => self::SLOT_BY_TIER[$row['tier']] ?? null,
         ], $result['rows']);
 
-        // breakdown SENGAJA dibuang — keputusan Thomas: form Produk cuma nampilin
-        // angka jadi, rinciannya "belakang layar".
+        // breakdown SENGAJA dibuang — keputusan Thomas: form Produk cuma angka jadi.
         return response()->json([
             'blockers' => $result['blockers'],
             'rows'     => $rows,
@@ -584,11 +606,10 @@ class ProductController extends Controller
 
     protected function validated(Request $request, ?Product $product = null): array
     {
-        // Normalisasi SEBELUM validate — form Indonesia ngirim "10,5", dan aturan
-        // 'numeric' nolak itu mentah-mentah. Kalau kebalik, Thomas dapet error
-        // validasi buat angka yang sebenernya bener menurut cara nulis dia.
+        // Normalisasi SEBELUM validate — form Indonesia ngirim "10,5" / "5.000".
         $request->merge([
-            'program_discount_percent' => $this->parsePercent($request->input('program_discount_percent')),
+            'program_extra_percent' => $this->parsePercent($request->input('program_extra_percent')),
+            'program_extra_amount'  => $this->parseMoney($request->input('program_extra_amount')),
         ]);
 
         $data = $request->validate([
@@ -598,7 +619,8 @@ class ProductController extends Controller
             'sku'           => ['nullable', 'string', 'max:100'],
             'brand_id'      => ['required', 'exists:brands,id'],
             'category_id'   => ['nullable', 'exists:categories,id'],
-            'program_discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'program_extra_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'program_extra_amount'  => ['nullable', 'integer', 'min:0'],
             'cost_price'    => ['nullable', 'integer', 'min:0'],
             'price_offline' => ['nullable', 'integer', 'min:0'],
             'price_grosir'  => ['nullable', 'integer', 'min:0'],
@@ -610,30 +632,35 @@ class ProductController extends Controller
             $data[$field] = (int) ($data[$field] ?? 0);
         }
 
-        // Kolom opsional: input kosong → NULL, bukan string kosong.
-        // Key selalu di-set supaya edit yang mengosongkan field benar-benar menghapus nilainya.
         foreach (['barcode', 'sku'] as $field) {
-            $value          = trim($data[$field] ?? '');
-            $data[$field]   = $value === '' ? null : $value;
+            $value        = trim($data[$field] ?? '');
+            $data[$field] = $value === '' ? null : $value;
         }
 
-        // Key SELALU di-set — alasan yang sama kayak barcode/sku di atas.
-        //
-        // program_discount_percent: null ≠ 0. null = ikut default brand,
-        // 0 = produk ini MEMANG gak dapet program walau brand-nya dapet.
-        // Jangan pernah ?? 0 di sini — itu ngilangin bedanya.
-        $data['category_id']              = $data['category_id'] ?? null;
-        $data['program_discount_percent'] = $data['program_discount_percent'] ?? null;
+        // Key SELALU di-set supaya edit yang mengosongkan field beneran ngehapus nilainya.
+        // Ini TAMBAHAN di atas program brand, bukan override — kosong = gak ada tambahan.
+        $data['category_id']           = $data['category_id'] ?? null;
+        $data['program_extra_percent'] = $data['program_extra_percent'] ?? null;
+        $data['program_extra_amount']  = $data['program_extra_amount'] ?? null;
 
         return $data;
     }
 
-    /** "10,5" → "10.5". Kosong → null (bukan 0 — lihat catatan di validated()). */
+    /** "10,5" → "10.5". Kosong → null. */
     protected function parsePercent(mixed $value): ?string
     {
         $value = trim((string) ($value ?? ''));
 
         return $value === '' ? null : str_replace(',', '.', $value);
+    }
+
+    /** "5.000" / "Rp 5.000" → "5000". Kosong → null. */
+    protected function parseMoney(mixed $value): ?string
+    {
+        $value  = trim((string) ($value ?? ''));
+        $digits = preg_replace('/\D/', '', $value);
+
+        return $digits === '' ? null : $digits;
     }
 
     protected function syncPrices(Product $product, Request $request): array

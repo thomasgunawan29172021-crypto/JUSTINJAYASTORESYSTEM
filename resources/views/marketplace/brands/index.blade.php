@@ -66,11 +66,17 @@
                     <p class="text-xs text-slate-400">PIC: {{ $b->pics->pluck('name')->join(', ') ?: '— belum ada' }}</p>
                     <p class="text-xs text-slate-400">
                         Program:
-                        @if($b->program_discount_percent > 0)
-                            <span class="font-semibold text-slate-600">{{ rtrim(rtrim(number_format((float) $b->program_discount_percent, 2, ',', ''), '0'), ',') }}%</span>
+                        @if($b->program_front_percent > 0 || $b->program_back_percent > 0)
+                            <span class="font-semibold text-slate-600">
+                                {{ rtrim(rtrim(number_format((float) $b->program_front_percent, 2, ',', ''), '0'), ',') ?: '0' }}%
+                                @if($b->program_back_percent > 0)
+                                    + {{ rtrim(rtrim(number_format((float) $b->program_back_percent, 2, ',', ''), '0'), ',') }}%
+                                @endif
+                            </span>
                         @else
                             <span class="text-slate-300">—</span>
                         @endif
+                        <a href="{{ route('pricing.brand-programs.index') }}" class="ml-1 text-emerald-700 hover:underline">atur →</a>
                     </p>
                 </div>
                 <div class="whitespace-nowrap">

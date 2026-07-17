@@ -59,6 +59,7 @@
                 ['User Management',   'users.index', $isCeo],
                 ['Pengaturan Cabang', 'branches.index', $isCeo],
                 ['Pengaturan Harga',  'pricing.settings.index', $isCeo],
+                ['Program Brand',     'pricing.brand-programs.index', $isCeo],
             ]],
         ];
 
@@ -102,6 +103,7 @@
             'users.index'                   => '👥',
             'branches.index'                => '🏢',
             'pricing.settings.index'        => '🧮',
+            'pricing.brand-programs.index'  => '🎁',
             'sosmed.videos.index'           => '🎬',
             'sosmed.metrics.index'          => '📈',
             'sosmed.report'                 => '📋',

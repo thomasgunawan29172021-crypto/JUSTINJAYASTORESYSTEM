@@ -12,14 +12,15 @@ class Brand extends Model
     use SoftDeletes;
 
     /**
-     * program_discount_percent = default diskon/subsidi supplier untuk brand ini
-     * (mis. Robot kasih 10%). Produk bisa override sendiri — lihat
-     * Product::effectiveProgramDiscount().
+     * Program supplier, BERTINGKAT (keputusan Thomas):
+     *   10.000 −10% = 9.000, lalu −5% dari 9.000 = 8.550
+     * Bukan dijumlah (yang bakal ngasih 8.500). Lihat Product::costAfterProgram().
      */
-    protected $fillable = ['name', 'program_discount_percent'];
+    protected $fillable = ['name', 'program_front_percent', 'program_back_percent'];
 
     protected $casts = [
-        'program_discount_percent' => 'float',
+        'program_front_percent' => 'float',
+        'program_back_percent'  => 'float',
     ];
 
     public function stores(): BelongsToMany

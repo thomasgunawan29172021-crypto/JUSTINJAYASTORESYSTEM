@@ -9,25 +9,33 @@ use App\Models\Store;
 use Illuminate\Support\Collection;
 
 /**
- * Mesin harga jual rekomendasi.
+ * Mesin harga jual rekomendasi + evaluasi untung/rugi.
  *
- *      P = (M + S) / (1 − a − t − m)
+ *      P = M / (1 − a − t − m − p1 − p2 − p3)
  *
- *   M = modal setelah diskon program (brand, atau override produk)
- *   S = ongkir, nominal Rupiah — per (marketplace × tier × kategori)
- *   a = % biaya admin  — per (marketplace × tier × kategori)
- *   t = % pajak (PPh Final) — global
- *   m = % target margin bersih — global. Margin = untung ÷ HARGA JUAL, bukan ÷ modal.
- *       Rumus ini bentuknya begini justru KARENA itu: margin dari harga jual bikin
- *       harga jual muncul di dua sisi persamaan, jadi harus dipindah ke penyebut.
+ *   M  = modal setelah semua program (lihat Product::costAfterProgram())
+ *   a  = % biaya admin           ┐
+ *   p1 = % program gratis ongkir │ per (marketplace × tier × kategori)
+ *   p2 = % program diskon        │
+ *   p3 = % program ekstra diskon ┘
+ *   t  = % pajak (PPh Final) — global
+ *   m  = % target margin bersih — global. Margin = untung ÷ HARGA JUAL, bukan ÷ modal.
+ *        Rumus ini bentuknya begini justru KARENA itu: margin dari harga jual bikin
+ *        harga jual muncul di dua sisi persamaan, jadi harus pindah ke penyebut.
  *
- * PRINSIP UTAMA: gagal harus BERISIK.
- * Setiap angka yang belum diisi Thomas menghasilkan pesan yang nyebut persis apa yang
- * kurang — bukan diam-diam dianggap nol. Harga yang keliatan valid tapi salah jauh
- * lebih bahaya daripada harga yang gak keluar sama sekali: Thomas gak punya cara tau
- * angkanya ngaco sampai dia rugi di transaksi nyata.
+ * Ongkir nominal udah TIDAK ADA — semua potongan marketplace sekarang persen, jadi
+ * pembilangnya cuma M.
  *
- * Fase 1: service ini belum dipanggil dari mana-mana. Diuji lewat tinker dulu.
+ * FASE 3 — evaluasi harga yang diketik sendiri:
+ *
+ *      untung = P × (1 − a − t − p1 − p2 − p3) − M
+ *
+ * Target margin sengaja gak ikut: untung itu fakta, bukan target. Kalau P = harga
+ * rekomendasi, untung ÷ P harus ≈ target margin. Kalau nggak, salah satu rumus bocor.
+ *
+ * PRINSIP UTAMA: gagal harus BERISIK. Tiap angka yang belum diisi bikin pesan yang
+ * nyebut persis apa yang kurang — bukan diam-diam dianggap nol. Harga yang keliatan
+ * valid tapi salah jauh lebih bahaya daripada harga yang gak keluar sama sekali.
  */
 class PricingCalculatorService
 {
@@ -35,16 +43,10 @@ class PricingCalculatorService
     public const ROUND_TO = 1000;
 
     /**
-     * Hitung harga rekomendasi sebuah produk untuk semua kombinasi (marketplace × tier)
-     * toko aktif.
-     *
+     * @param  array<string,int>  $typedPrices  key "marketplace|tier" => harga yang diketik
      * @return array{blockers: array<int,string>, rows: array<int,array>}
-     *   blockers → masalah yang bikin SEMUA kombinasi gak bisa dihitung. Kalau ini
-     *              gak kosong, `rows` pasti kosong — percuma ngitung per toko.
-     *   rows     → satu entry per kombinasi. `price` int kalau sukses, null kalau
-     *              gagal (alasannya di `error`).
      */
-    public function calculate(Product $product): array
+    public function calculate(Product $product, array $typedPrices = []): array
     {
         $settings = PricingSetting::current();
         $blockers = $this->findBlockers($product, $settings);
@@ -53,14 +55,13 @@ class PricingCalculatorService
             return ['blockers' => $blockers, 'rows' => []];
         }
 
-        // M dan komponen global dihitung SEKALI di luar loop.
         $costAfterProgram = $product->costAfterProgram();
         $taxPercent       = $settings->tax_percent;
         $marginPercent    = $settings->margin_percent;
 
-        // Prefetch semua baris biaya kategori ini dalam 1 query, di-index pakai kunci
-        // gabungan. Tanpa ini, tiap kombinasi = 1 query (N+1) — pola yang udah bikin
-        // masalah di AttendanceRecapController dan MarketplaceDashboardController.
+        // Prefetch semua baris biaya kategori ini dalam 1 query. Tanpa ini, tiap
+        // kombinasi = 1 query (N+1) — pola yang udah bikin masalah di
+        // AttendanceRecapController dan MarketplaceDashboardController.
         $fees = MarketplaceCategoryFee::where('category_id', $product->category_id)
             ->get()
             ->keyBy(fn (MarketplaceCategoryFee $f) => $this->key($f->marketplace, $f->tier));
@@ -68,8 +69,11 @@ class PricingCalculatorService
         $rows = [];
 
         foreach ($this->activeCombos() as $combo) {
+            $key = $this->key($combo['marketplace'], $combo['tier']);
+
             $rows[] = $this->calculateCombo(
-                $combo, $fees, $costAfterProgram, $taxPercent, $marginPercent, $product
+                $combo, $fees, $costAfterProgram, $taxPercent, $marginPercent, $product,
+                $typedPrices[$key] ?? null
             );
         }
 
@@ -77,15 +81,15 @@ class PricingCalculatorService
     }
 
     /**
-     * Masalah yang bikin semua kombinasi mustahil dihitung — dicek duluan supaya
-     * Thomas gak dikasih 5 baris error yang isinya keluhan yang sama.
+     * Masalah yang bikin SEMUA kombinasi mustahil — dicek duluan supaya Thomas gak
+     * dikasih 5 baris error yang isinya keluhan yang sama.
      */
     protected function findBlockers(Product $product, PricingSetting $settings): array
     {
         $blockers = [];
 
         if ($product->category_id === null) {
-            $blockers[] = 'Kategori produk belum dipilih — biaya admin & ongkir gak bisa ditentukan tanpa kategori.';
+            $blockers[] = 'Kategori produk belum dipilih — biaya admin & program gak bisa ditentukan tanpa kategori.';
         }
 
         if ($settings->margin_percent === null) {
@@ -98,6 +102,10 @@ class PricingCalculatorService
 
         if ($product->cost_price <= 0) {
             $blockers[] = 'Modal produk masih 0 — isi harga beli dulu.';
+        } elseif ($product->costAfterProgram() <= 0) {
+            // Potongan program lebih besar dari modal → M nol/negatif → harga jual
+            // ikut ngaco. Hampir pasti salah ketik, jadi tolak dengan jelas.
+            $blockers[] = 'Potongan program lebih besar dari modal — cek program brand & tambahan diskon produk.';
         }
 
         return $blockers;
@@ -106,11 +114,13 @@ class PricingCalculatorService
     /**
      * Kombinasi (marketplace × tier) yang beneran ada di toko aktif.
      *
-     * Sengaja diturunkan dari `stores`, BUKAN dari daftar marketplace yang diketik
-     * manual: nilai marketplace & tier di tabel biaya disalin dari sini, jadi
-     * lookup-nya gak mungkin meleset gara-gara typo atau beda huruf besar-kecil.
-     *
+     * Sengaja diturunkan dari `stores`: nilai marketplace & tier di tabel biaya disalin
+     * dari sini, jadi lookup-nya gak mungkin meleset gara-gara typo atau beda huruf.
      * Toko di Sampah otomatis kebuang (SoftDeletes di model Store).
+     *
+     * public — halaman Pengaturan Harga bikin grid biaya dari method yang SAMA.
+     * Kalau controller ngitung kombinasi sendiri, suatu hari dua-duanya beda dan
+     * Thomas ngisi baris yang gak pernah dibaca mesinnya.
      */
     public function activeCombos(): Collection
     {
@@ -132,7 +142,8 @@ class PricingCalculatorService
         float $costAfterProgram,
         float $taxPercent,
         float $marginPercent,
-        Product $product
+        Product $product,
+        ?int $typedPrice = null
     ): array {
         $row = [
             'marketplace' => $combo['marketplace'],
@@ -141,15 +152,14 @@ class PricingCalculatorService
             'price'       => null,
             'error'       => null,
             'breakdown'   => null,
+            'evaluation'  => null,
         ];
 
         $label = ucfirst($combo['marketplace']).' '.($combo['tier'] ?? '?')
             .' × '.$product->category->name;
 
-        // Toko tanpa tier gak bisa dicariin biayanya sama sekali.
         if ($combo['tier'] === null) {
-            $row['error'] = 'Tier belum diatur untuk toko: '
-                .implode(', ', $combo['store_names']).'.';
+            $row['error'] = 'Tier belum diatur untuk toko: '.implode(', ', $combo['store_names']).'.';
 
             return $row;
         }
@@ -163,53 +173,60 @@ class PricingCalculatorService
         }
 
         // null ≠ 0. Baris yang cuma keisi separuh = belum siap, bukan gratis.
-        $missing = [];
-        if ($fee->admin_percent === null) {
-            $missing[] = 'biaya admin';
-        }
-        if ($fee->shipping_cost === null) {
-            $missing[] = 'ongkir';
-        }
+        $missing = $fee->missingFields();
 
         if ($missing !== []) {
-            $row['error'] = ucfirst(implode(' & ', $missing))." untuk {$label} belum diisi.";
+            $row['error'] = ucfirst(implode(', ', $missing))." untuk {$label} belum diisi.";
 
             return $row;
         }
 
-        $adminPercent = $fee->admin_percent;
-        $totalPercent = $adminPercent + $taxPercent + $marginPercent;
+        $marketplacePercent = $fee->totalPercent();
+
+        // FASE 3 — dihitung SEBELUM guard penyebut: untung gak butuh target margin
+        // sama sekali. Jadi walau target margin bikin harga rekomendasi mustahil,
+        // angka untung dari harga yang Thomas ketik TETAP sah.
+        if ($typedPrice !== null && $typedPrice > 0) {
+            $profit = $typedPrice * (1 - ($marketplacePercent + $taxPercent) / 100) - $costAfterProgram;
+
+            $row['evaluation'] = [
+                'price'          => $typedPrice,
+                'profit'         => (int) round($profit),
+                'margin_percent' => round($profit / $typedPrice * 100, 2),
+            ];
+        }
+
+        $totalPercent = $marketplacePercent + $taxPercent + $marginPercent;
         $denominator  = 1 - ($totalPercent / 100);
 
-        // Edge case wajib: kalau potongan totalnya ≥ 100%, gak ada harga jual yang
-        // bisa nutup — mau dijual berapa pun, sisanya gak akan pernah nyampe target.
-        // Matematikanya ngasih pembagian nol / harga negatif. Harus ditolak.
+        // Edge case wajib: kalau potongan totalnya ≥ 100%, gak ada harga jual yang bisa
+        // nutup — mau dijual berapa pun, sisanya gak akan pernah nyampe target.
         if ($denominator <= 0) {
-            $row['error'] = 'Gak mungkin dihitung: admin '.$adminPercent.'% + pajak '
-                .$taxPercent.'% + margin '.$marginPercent.'% = '.$totalPercent
-                .'%, udah makan seluruh harga jual. Turunin target margin.';
+            $row['error'] = 'Gak mungkin dihitung: total potongan '.round($totalPercent, 2)
+                .'% (admin + program + pajak + margin) udah makan seluruh harga jual. Turunin target margin atau cek biaya.';
 
             return $row;
         }
 
-        $raw   = ($costAfterProgram + $fee->shipping_cost) / $denominator;
+        $raw   = $costAfterProgram / $denominator;
         $price = $this->roundUp($raw);
 
         $row['price'] = $price;
 
-        // Breakdown BUKAN buat ditampilin ke Thomas di form Produk (keputusannya:
-        // cuma angka akhir, "belakang layar"). Ini buat tinker/debug sekarang, dan
-        // bahan Fase 3 (estimasi untung/rugi). View yang mutusin nampilin atau nggak.
+        // breakdown BUKAN buat ditampilin ke Thomas di form Produk (keputusannya:
+        // cuma angka akhir, "belakang layar"). Ini buat tinker/debug + bahan Fase 3.
         $row['breakdown'] = [
-            'modal_asli'        => (int) $product->cost_price,
-            'program_percent'   => $product->effectiveProgramDiscount(),
-            'modal_after'       => round($costAfterProgram, 2),
-            'ongkir'            => $fee->shipping_cost,
-            'admin_percent'     => $adminPercent,
-            'pajak_percent'     => $taxPercent,
-            'margin_percent'    => $marginPercent,
-            'penyebut'          => round($denominator, 4),
-            'harga_sebelum_bulat' => round($raw, 2),
+            'modal_asli'             => (int) $product->cost_price,
+            'modal_after'            => round($costAfterProgram, 2),
+            'admin_percent'          => $fee->admin_percent,
+            'program_ongkir_percent' => $fee->program_ongkir_percent,
+            'program_diskon_percent' => $fee->program_diskon_percent,
+            'program_ekstra_percent' => $fee->program_ekstra_percent,
+            'pajak_percent'          => $taxPercent,
+            'margin_percent'         => $marginPercent,
+            'total_potongan'         => round($totalPercent, 2),
+            'penyebut'               => round($denominator, 4),
+            'harga_sebelum_bulat'    => round($raw, 2),
         ];
 
         return $row;
