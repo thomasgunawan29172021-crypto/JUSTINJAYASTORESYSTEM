@@ -459,6 +459,67 @@ class ProductController extends Controller
         }, 'produk-'.now()->format('Y-m-d-Hi').'.csv', ['Content-Type' => 'text/csv']);
     }
 
+    /**
+     * Harga rekomendasi buat form Produk — dipanggil JS live saat Thomas ngetik.
+     *
+     * Sengaja lewat endpoint, BUKAN dihitung ulang di JavaScript: rumusnya cuma boleh
+     * hidup di SATU tempat (PricingCalculatorService). Kalau formula-nya dikembarin di
+     * JS, suatu hari dua-duanya beda dan Thomas lihat angka yang bukan angka sistem —
+     * tanpa ada error apa pun yang ngasih tau.
+     */
+    public function priceRecommendation(Request $request, \App\Services\PricingCalculatorService $calculator)
+    {
+        abort_unless($request->user()->role->isCeo(), 403);
+
+        $request->merge([
+            'program_discount_percent' => $this->parsePercent($request->input('program_discount_percent')),
+        ]);
+
+        $data = $request->validate([
+            'brand_id'    => ['nullable', 'exists:brands,id'],
+            'category_id' => ['nullable', 'exists:categories,id'],
+            'cost_price'  => ['nullable', 'integer', 'min:0'],
+            'program_discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+        ]);
+
+        // Instance SEMENTARA — gak pernah kena ->save(). Ini yang bikin halaman
+        // "Produk Baru" bisa nampilin rekomendasi sebelum produknya disimpan.
+        $product = new Product([
+            'brand_id'    => $data['brand_id'] ?? null,
+            'category_id' => $data['category_id'] ?? null,
+            'cost_price'  => (int) ($data['cost_price'] ?? 0),
+            // null ≠ 0 — jangan ?? 0 di sini.
+            'program_discount_percent' => $data['program_discount_percent'] ?? null,
+        ]);
+
+        $result = $calculator->calculate($product);
+
+        $rows = array_map(fn (array $row) => [
+            'marketplace' => $row['marketplace'],
+            'tier'        => $row['tier'],
+            'price'       => $row['price'],
+            'error'       => $row['error'],
+            // Pemetaan tier → slot input ditaruh di PHP, bukan JS — biar pas
+            // product_prices di-restructure nanti, cuma SATU tempat yang diubah.
+            //
+            // tier selain mall/biasa BELUM punya slot: price_mall & price_regular
+            // cuma dua kolom. Ditandai null → tombol "pakai" dimatikan, angkanya
+            // tetap ditampilkan. Ini utang yang ditunda, bukan dilupain.
+            'slot'        => match ($row['tier']) {
+                'mall'  => 'mall',
+                'biasa' => 'regular',
+                default => null,
+            },
+        ], $result['rows']);
+
+        // breakdown SENGAJA dibuang — keputusan Thomas: form Produk cuma nampilin
+        // angka jadi, rinciannya "belakang layar".
+        return response()->json([
+            'blockers' => $result['blockers'],
+            'rows'     => $rows,
+        ]);
+    }
+
     /* ------------------------- Sampah ------------------------- */
 
     public function destroy(Product $product)
@@ -514,6 +575,7 @@ class ProductController extends Controller
     {
         return [
             'brands'       => Brand::orderBy('name')->get(),
+            'categories'   => \App\Models\Category::orderBy('name')->get(),
             'marketplaces' => Store::where('is_active', true)->pluck('marketplace')->unique()->values(),
             'allProducts'  => Product::whereNull('archived_at')->orderBy('name')->get(['id', 'name']),
             'stores'       => Store::where('is_active', true)->orderBy('marketplace')->orderBy('name')->get(),
@@ -522,12 +584,21 @@ class ProductController extends Controller
 
     protected function validated(Request $request, ?Product $product = null): array
     {
+        // Normalisasi SEBELUM validate — form Indonesia ngirim "10,5", dan aturan
+        // 'numeric' nolak itu mentah-mentah. Kalau kebalik, Thomas dapet error
+        // validasi buat angka yang sebenernya bener menurut cara nulis dia.
+        $request->merge([
+            'program_discount_percent' => $this->parsePercent($request->input('program_discount_percent')),
+        ]);
+
         $data = $request->validate([
             'name'          => ['required', 'string', 'max:200',
                 Rule::unique('products', 'name')->ignore($product?->id)],
             'barcode'       => ['nullable', 'string', 'max:100'],
             'sku'           => ['nullable', 'string', 'max:100'],
             'brand_id'      => ['required', 'exists:brands,id'],
+            'category_id'   => ['nullable', 'exists:categories,id'],
+            'program_discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'cost_price'    => ['nullable', 'integer', 'min:0'],
             'price_offline' => ['nullable', 'integer', 'min:0'],
             'price_grosir'  => ['nullable', 'integer', 'min:0'],
@@ -546,7 +617,23 @@ class ProductController extends Controller
             $data[$field]   = $value === '' ? null : $value;
         }
 
+        // Key SELALU di-set — alasan yang sama kayak barcode/sku di atas.
+        //
+        // program_discount_percent: null ≠ 0. null = ikut default brand,
+        // 0 = produk ini MEMANG gak dapet program walau brand-nya dapet.
+        // Jangan pernah ?? 0 di sini — itu ngilangin bedanya.
+        $data['category_id']              = $data['category_id'] ?? null;
+        $data['program_discount_percent'] = $data['program_discount_percent'] ?? null;
+
         return $data;
+    }
+
+    /** "10,5" → "10.5". Kosong → null (bukan 0 — lihat catatan di validated()). */
+    protected function parsePercent(mixed $value): ?string
+    {
+        $value = trim((string) ($value ?? ''));
+
+        return $value === '' ? null : str_replace(',', '.', $value);
     }
 
     protected function syncPrices(Product $product, Request $request): array

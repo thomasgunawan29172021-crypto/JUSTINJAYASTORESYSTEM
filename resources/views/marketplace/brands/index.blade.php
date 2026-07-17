@@ -64,6 +64,14 @@
                         {{ $b->stores->map(fn ($s) => $s->label())->join(', ') ?: '— belum dipetakan ke toko manapun' }}
                     </p>
                     <p class="text-xs text-slate-400">PIC: {{ $b->pics->pluck('name')->join(', ') ?: '— belum ada' }}</p>
+                    <p class="text-xs text-slate-400">
+                        Program:
+                        @if($b->program_discount_percent > 0)
+                            <span class="font-semibold text-slate-600">{{ rtrim(rtrim(number_format((float) $b->program_discount_percent, 2, ',', ''), '0'), ',') }}%</span>
+                        @else
+                            <span class="text-slate-300">—</span>
+                        @endif
+                    </p>
                 </div>
                 <div class="whitespace-nowrap">
                     @if($trashView ?? false)

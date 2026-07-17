@@ -56,8 +56,14 @@ class BrandController extends Controller
 
     public function update(Request $request, Brand $brand)
     {
+        // Normalisasi SEBELUM validate — "10,5" ditolak mentah-mentah sama 'numeric'.
+        $request->merge([
+            'program_discount_percent' => $this->parsePercent($request->input('program_discount_percent')),
+        ]);
+
         $data = $request->validate([
             'name'         => ['required', 'string', 'max:100', Rule::unique('brands', 'name')->ignore($brand->id)],
+            'program_discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'stores'       => ['nullable', 'array'],
             'stores.*'     => ['exists:stores,id'],
             'store_pics'   => ['nullable', 'array'],
@@ -67,7 +73,13 @@ class BrandController extends Controller
         $storeIds = array_map('intval', $data['stores'] ?? []);
 
         \Illuminate\Support\Facades\DB::transaction(function () use ($brand, $data, $storeIds) {
-            $brand->update(['name' => $data['name']]);
+            // Di level BRAND, null dan 0 sama-sama berarti "tidak ada program" —
+            // effectiveProgramDiscount() jatuh ke ?? 0.0. Beda dengan level PRODUK,
+            // di mana null = "ikut brand" dan 0 = "memang tidak dapat program".
+            $brand->update([
+                'name'                     => $data['name'],
+                'program_discount_percent' => $data['program_discount_percent'] ?? null,
+            ]);
             $brand->stores()->sync($storeIds);
 
             // Rebuild PIC per toko — hanya toko yang dicentang; dropdown kosong = toko tanpa PIC.
@@ -87,6 +99,14 @@ class BrandController extends Controller
         });
 
         return redirect()->route('marketplace.brands.index')->with('ok', "Brand {$brand->name} diperbarui.");
+    }
+
+    /** "10,5" → "10.5". Kosong → null. */
+    protected function parsePercent(mixed $value): ?string
+    {
+        $value = trim((string) ($value ?? ''));
+
+        return $value === '' ? null : str_replace(',', '.', $value);
     }
 
     public function destroy(Brand $brand)

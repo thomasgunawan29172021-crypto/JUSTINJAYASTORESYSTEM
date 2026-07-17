@@ -234,6 +234,9 @@ Route::middleware(['auth', 'active'])->group(function () {
             Route::get('/products/import',            [ProductController::class, 'importForm'])->name('products.import.form');
             Route::post('/products/import',           [ProductController::class, 'import'])->name('products.import');
             Route::get('/products/export',            [ProductController::class, 'export'])->name('products.export');
+            // Dipanggil JS dari form Produk (live saat ngetik). Path literal — taruh
+            // di atas /products/{product} biar gak ketangkep sebagai ID produk.
+            Route::post('/products/price-recommendation', [ProductController::class, 'priceRecommendation'])->name('products.recommendation');
             Route::get('/products/trash',             [ProductController::class, 'trash'])->name('products.trash');
             Route::delete('/products/trash/clear',    [ProductController::class, 'clearTrash'])->name('products.trash.clear');
             Route::put('/products/{product}/postings', [ProductController::class, 'updatePostings'])->name('products.postings.update');
