@@ -47,11 +47,21 @@
                 @endforeach
             </datalist>
         </div>
-        <label class="flex items-center gap-1.5 text-sm text-slate-600 pb-2.5">
-            <input type="checkbox" name="is_mall" value="1" class="rounded"> Toko Mall
-        </label>
+        <div class="flex-1 min-w-32">
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Tier</label>
+            <input type="text" name="tier" required placeholder="biasa / star / mall" list="tier-list"
+                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <datalist id="tier-list">
+                @foreach($tierOptions ?? [] as $t)
+                    <option value="{{ $t }}">
+                @endforeach
+            </datalist>
+        </div>
         <button class="rounded-lg bg-emerald-500 text-white text-sm font-semibold px-4 py-2">+ Tambah</button>
     </form>
+    <p class="text-[11px] text-slate-400 -mt-3 mb-5">
+        Tier menentukan biaya admin marketplace yang dipakai buat hitung harga jual rekomendasi. Toko bertier <b>mall</b> otomatis ditandai Toko Mall.
+    </p>
     @endunless
 
     <div class="bg-white rounded-xl border border-slate-200 overflow-x-auto">
@@ -60,6 +70,7 @@
                 <tr>
                     <th class="px-4 py-3">Toko</th>
                     <th class="px-4 py-3">Marketplace</th>
+                    <th class="px-4 py-3">Tier</th>
                     <th class="px-4 py-3">Status</th>
                     <th class="px-4 py-3 text-right">Aksi</th>
                 </tr>
@@ -67,13 +78,19 @@
             <tbody class="divide-y divide-slate-100">
                 @forelse($stores as $s)
                     <tr class="hover:bg-slate-50 {{ ! $s->is_active ? 'opacity-50' : '' }}">
-                        <td class="px-4 py-3 font-semibold">
-                            {{ $s->name }}
-                            @if($s->is_mall)
-                                <span class="ml-1 px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[10px]">Mall</span>
+                        <td class="px-4 py-3 font-semibold">{{ $s->name }}</td>
+                        <td class="px-4 py-3">{{ ucfirst($s->marketplace) }}</td>
+                        <td class="px-4 py-3">
+                            @if($s->tier)
+                                <span class="px-1.5 py-0.5 rounded text-[10px] {{ $s->tier === 'biasa' ? 'bg-slate-100 text-slate-600' : 'bg-violet-100 text-violet-700' }}">
+                                    {{ ucfirst($s->tier) }}
+                                </span>
+                            @else
+                                <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px]" title="Harga jual rekomendasi tidak bisa dihitung tanpa tier">
+                                    ⚠ Belum diatur
+                                </span>
                             @endif
                         </td>
-                        <td class="px-4 py-3">{{ ucfirst($s->marketplace) }}</td>
                         <td class="px-4 py-3">
                             <span class="px-2 py-0.5 rounded-full text-[11px] font-medium {{ $s->is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600' }}">
                                 {{ $s->is_active ? 'Aktif' : 'Nonaktif' }}
@@ -96,7 +113,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="4" class="px-4 py-8 text-center text-slate-400">Belum ada toko.</td></tr>
+                    <tr><td colspan="5" class="px-4 py-8 text-center text-slate-400">Belum ada toko.</td></tr>
                 @endforelse
             </tbody>
         </table>

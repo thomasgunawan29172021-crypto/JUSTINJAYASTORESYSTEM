@@ -11,7 +11,8 @@ class StoreController extends Controller
     public function index()
     {
         return view('marketplace.stores.index', [
-            'stores' => Store::orderBy('marketplace')->orderBy('name')->get(),
+            'stores'      => Store::orderBy('marketplace')->orderBy('name')->get(),
+            'tierOptions' => $this->tierOptions(),
         ]);
     }
 
@@ -27,7 +28,8 @@ class StoreController extends Controller
     public function edit(Store $store)
     {
         return view('marketplace.stores.edit', [
-            'store' => $store,
+            'store'       => $store,
+            'tierOptions' => $this->tierOptions(),
         ]);
     }
 
@@ -51,8 +53,9 @@ class StoreController extends Controller
     public function trash()
     {
         return view('marketplace.stores.index', [
-            'stores'    => Store::onlyTrashed()->orderBy('deleted_at')->get(),
-            'trashView' => true,
+            'stores'      => Store::onlyTrashed()->orderBy('deleted_at')->get(),
+            'trashView'   => true,
+            'tierOptions' => $this->tierOptions(),
         ]);
     }
 
@@ -80,19 +83,43 @@ class StoreController extends Controller
         return back()->with('ok', $msg);
     }
 
+    /**
+     * Saran tier buat datalist: tier yang udah dipakai + saran bawaan.
+     * withTrashed() supaya tier toko di sampah gak ilang dari saran.
+     */
+    protected function tierOptions(): array
+    {
+        return Store::withTrashed()
+            ->pluck('tier')
+            ->filter()
+            ->map(fn (string $t) => strtolower($t))
+            ->merge(Store::TIER_SUGGESTIONS)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
     protected function validated(Request $request): array
     {
         $data = $request->validate([
             'name'             => ['required', 'string', 'max:100'],
             'marketplace'      => ['required', 'string', 'max:50'],
+            'tier'             => ['required', 'string', 'max:30'],
             'account_email'    => ['nullable', 'string', 'max:150'],
             'account_phone'    => ['nullable', 'string', 'max:20'],
             'account_password' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        // Normalisasi: "Shopee"/"SHOPEE"/"shopee" = satu grup di laporan
+        // Normalisasi WAJIB juga buat tier — nilai ini dipakai lookup biaya
+        // admin/ongkir dengan string-match persis. Sekali "Mall" ≠ "mall",
+        // harga rekomendasi ilang tanpa pesan error apa pun.
         $data['marketplace'] = strtolower(trim($data['marketplace']));
-        $data['is_mall']     = $request->boolean('is_mall');
+        $data['tier']        = strtolower(trim($data['tier']));
+
+        // is_mall DITURUNKAN dari tier, bukan input terpisah — bikin drift mustahil.
+        // FASE 2: setelah product_prices di-restructure, buang is_mall & baris ini.
+        $data['is_mall'] = $data['tier'] === 'mall';
 
         return $data;
     }

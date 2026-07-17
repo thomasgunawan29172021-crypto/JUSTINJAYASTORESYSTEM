@@ -11,7 +11,16 @@ class Brand extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['name'];
+    /**
+     * program_discount_percent = default diskon/subsidi supplier untuk brand ini
+     * (mis. Robot kasih 10%). Produk bisa override sendiri — lihat
+     * Product::effectiveProgramDiscount().
+     */
+    protected $fillable = ['name', 'program_discount_percent'];
+
+    protected $casts = [
+        'program_discount_percent' => 'float',
+    ];
 
     public function stores(): BelongsToMany
     {
@@ -22,8 +31,8 @@ class Brand extends Model
     {
         return $this->hasMany(Product::class);
     }
-    
-    public function pics(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+
+    public function pics(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'brand_user');
     }

@@ -10,7 +10,23 @@ class Store extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['name', 'marketplace', 'is_mall', 'is_active', 'account_email', 'account_phone', 'account_password'];
+    /**
+     * Saran tier buat datalist form — BUKAN daftar tertutup.
+     * Sengaja gak dibikin enum: tiap marketplace punya istilah tier sendiri,
+     * jadi Thomas harus bisa nambah tier baru tanpa nunggu developer.
+     */
+    public const TIER_SUGGESTIONS = ['biasa', 'star', 'mall'];
+
+    /**
+     * UTANG TEKNIS — `tier` = SUMBER KEBENARAN. `is_mall` = DEPRECATED, cuma hidup
+     * karena product_prices (price_mall/price_regular) & priceForStore() masih
+     * gantung ke situ. is_mall DITURUNKAN dari tier di StoreController::validated().
+     * FASE 2: restructure product_prices ke baris-per-tier, lalu buang is_mall.
+     */
+    protected $fillable = [
+        'name', 'marketplace', 'tier', 'is_mall', 'is_active',
+        'account_email', 'account_phone', 'account_password',
+    ];
 
     protected $casts = [
         'is_mall'          => 'boolean',
@@ -28,8 +44,17 @@ class Store extends Model
         return $this->belongsToMany(Brand::class);
     }
 
+    /**
+     * Label tampilan, mis. "JJ Official — Shopee Mall".
+     * Pakai `tier` (bukan is_mall) supaya tier selain mall — Star, dst — ikut kelihatan.
+     * 'biasa' sengaja gak ditulis. Untuk data sekarang hasilnya identik versi lama.
+     */
     public function label(): string
     {
-        return $this->name.' — '.ucfirst($this->marketplace).($this->is_mall ? ' Mall' : '');
+        $suffix = $this->tier && $this->tier !== 'biasa'
+            ? ' '.ucfirst($this->tier)
+            : '';
+
+        return $this->name.' — '.ucfirst($this->marketplace).$suffix;
     }
 }

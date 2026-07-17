@@ -21,10 +21,21 @@
                    class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
         </div>
 
-        <label class="flex items-center gap-2 text-sm text-slate-600">
-            <input type="checkbox" name="is_mall" value="1" @checked(old('is_mall', $store->is_mall)) class="rounded">
-            Toko Mall <span class="text-slate-400">(menentukan harga mall/non-mall yang dipakai)</span>
-        </label>
+        <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Tier *</label>
+            <input type="text" name="tier" value="{{ old('tier', $store->tier) }}" required
+                   placeholder="biasa / star / mall" list="tier-list"
+                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <datalist id="tier-list">
+                @foreach($tierOptions ?? [] as $t)
+                    <option value="{{ $t }}">
+                @endforeach
+            </datalist>
+            <p class="text-[11px] text-slate-400 mt-1">
+                Menentukan biaya admin marketplace yang dipakai buat hitung harga jual rekomendasi.
+                Tier <b>mall</b> otomatis menandai toko ini sebagai Toko Mall — tidak perlu diatur terpisah.
+            </p>
+        </div>
 
         <div class="border-t border-slate-100 pt-4">
             <p class="text-xs font-semibold text-slate-600 mb-1">🔑 Kredensial Akun Toko</p>

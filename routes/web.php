@@ -16,6 +16,7 @@ use App\Http\Controllers\Marketplace\ProductController;
 use App\Http\Controllers\Marketplace\StoreController;
 use App\Http\Controllers\Marketplace\TaskController;
 use App\Http\Controllers\PayrollController;
+use App\Http\Controllers\PricingSettingController;
 use App\Http\Controllers\Service\DashboardController as ServiceDashboardController;
 use App\Http\Controllers\Service\KpiController;
 use App\Http\Controllers\Service\TicketController;
@@ -189,6 +190,18 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('/holidays',           [HolidayController::class, 'index'])->name('holidays.index');
         Route::post('/holidays',          [HolidayController::class, 'store'])->name('holidays.store');
         Route::delete('/holidays/{holiday}', [HolidayController::class, 'destroy'])->name('holidays.destroy');
+
+        // ---------------- PENGATURAN HARGA (pricing engine — Fase 1) ----------------
+        // CEO-only: modal, margin, dan biaya marketplace itu data rahasia bisnis.
+        Route::prefix('pricing')->name('pricing.')->group(function () {
+            Route::get('/settings', [PricingSettingController::class, 'index'])->name('settings.index');
+            Route::put('/settings', [PricingSettingController::class, 'update'])->name('settings.update');
+
+            Route::post('/categories',              [PricingSettingController::class, 'storeCategory'])->name('categories.store');
+            Route::delete('/categories/{category}', [PricingSettingController::class, 'destroyCategory'])->name('categories.destroy');
+
+            Route::put('/fees', [PricingSettingController::class, 'updateFees'])->name('fees.update');
+        });
 
         Route::prefix('marketplace')->name('marketplace.')->group(function () {
             Route::get('/dashboard',                       [MarketplaceDashboardController::class, 'index'])->name('dashboard');

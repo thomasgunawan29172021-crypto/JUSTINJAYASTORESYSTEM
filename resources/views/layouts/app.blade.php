@@ -58,6 +58,7 @@
             'pengaturan' => ['label' => 'Pengaturan', 'tiles' => [
                 ['User Management',   'users.index', $isCeo],
                 ['Pengaturan Cabang', 'branches.index', $isCeo],
+                ['Pengaturan Harga',  'pricing.settings.index', $isCeo],
             ]],
         ];
 
@@ -100,6 +101,7 @@
             'payroll.index'                 => '💰',
             'users.index'                   => '👥',
             'branches.index'                => '🏢',
+            'pricing.settings.index'        => '🧮',
             'sosmed.videos.index'           => '🎬',
             'sosmed.metrics.index'          => '📈',
             'sosmed.report'                 => '📋',
@@ -145,7 +147,8 @@
             str_starts_with($curRoute, 'holidays.')                           => 'kepegawaian',
             str_starts_with($curRoute, 'payroll.')                            => 'keuangan',
             str_starts_with($curRoute, 'users.'),
-            str_starts_with($curRoute, 'branches.')                           => 'pengaturan',
+            str_starts_with($curRoute, 'branches.'),
+            str_starts_with($curRoute, 'pricing.')                            => 'pengaturan',
             $curRoute === 'dashboard'                                         => 'dashboard',
             str_starts_with($curRoute, 'calendar.')                            => 'kalender',
             default                                                           => null,
@@ -531,6 +534,38 @@
     document.querySelectorAll('form').forEach(function (form) {
         form.addEventListener('submit', function () {
             form.querySelectorAll('.money-input').forEach(function (el) { el.value = el.value.replace(/\D/g, ''); });
+        });
+    });
+})();
+
+/* ============ Input format Indonesia (pricing) ============ */
+(function () {
+    /* --- Rupiah: 10000 → 10.000. BEDA dari .money-input: nol TIDAK dibuang.
+           Di pricing, 0 = "memang gratis" dan null = "belum diisi" — dua hal beda.
+           .money-input punya .replace(/^0+/,'') yang bikin "0" jadi kosong. --- */
+    document.querySelectorAll('.rp-input').forEach(function (el) {
+        el.addEventListener('input', function () {
+            var raw = el.value.replace(/\D/g, '');
+            el.value = raw ? raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : '';
+        });
+    });
+
+    /* --- Persen: izinkan angka, koma, titik. "3,5" dan "3.5" dua-duanya sah.
+           Titik TIDAK dianggap pemisah ribuan di sini — persen gak pernah ribuan. --- */
+    document.querySelectorAll('.percent-input').forEach(function (el) {
+        el.addEventListener('input', function () {
+            el.value = el.value.replace(/[^\d.,]/g, '');
+        });
+    });
+
+    document.querySelectorAll('form').forEach(function (form) {
+        form.addEventListener('submit', function () {
+            form.querySelectorAll('.rp-input').forEach(function (el) {
+                el.value = el.value.replace(/\D/g, '');
+            });
+            form.querySelectorAll('.percent-input').forEach(function (el) {
+                el.value = el.value.replace(',', '.');
+            });
         });
     });
 })();
