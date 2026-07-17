@@ -10,6 +10,15 @@
         {{ $isCeo ? 'Semua tugas di semua toko (mode CEO).' : 'Tugas untuk toko yang Anda pegang.' }}
     </p>
 
+    @if($pending->isNotEmpty())
+        <div class="mb-4">
+            <button type="button" id="bulkToggle"
+                    class="rounded-xl bg-white border border-slate-300 px-4 py-2 text-sm font-semibold hover:border-emerald-400">
+                ☑️ Pilih Tugas
+            </button>
+        </div>
+    @endif
+
     {{-- SATU kotak cari untuk dua daftar. Ketik = antrian tersaring instan (JS).
          Enter/Cari = server ikut menyaring riwayat Selesai dengan kata yang sama.
          Form selalu tampil: kalau hasil server bikin antrian kosong, orang tetap
@@ -75,14 +84,17 @@
                                     class="text-base leading-none {{ $t->pinned_at ? '' : 'opacity-30 hover:opacity-100' }}">📌</button>
                         </form>
 
-                        <div class="flex items-center justify-between gap-2 mb-1 pr-6">
+                        <div class="flex items-center gap-2 mb-1 pr-6">
+                            <label class="js-bulk-pick hidden cursor-pointer shrink-0 flex items-center">
+                                <input type="checkbox" class="bulk-cb rounded accent-emerald-500 w-4 h-4 block" value="{{ $t->id }}">
+                            </label>
                             <span class="px-2 py-0.5 rounded-full text-[11px] font-medium
                                 @if($t->type === \App\Models\MarketplaceTask::TYPE_POSTING) bg-emerald-100 text-emerald-800
                                 @elseif($t->type === \App\Models\MarketplaceTask::TYPE_REVISION) bg-rose-100 text-rose-800
                                 @else bg-amber-100 text-amber-800 @endif">
                                 {{ $t->typeLabel() }}
                             </span>
-                            <span class="text-[11px] text-slate-400">{{ $t->created_at->diffForHumans() }}</span>
+                            <span class="text-[11px] text-slate-400 ml-auto">{{ $t->created_at->diffForHumans() }}</span>
                         </div>
 
                         <p class="font-semibold text-sm">{{ $t->product->name }}</p>
@@ -102,7 +114,7 @@
                             <p class="text-[11px] text-slate-400 mt-1">📝 {{ $t->note }}</p>
                         @endif
 
-                        <form method="POST" action="{{ route('marketplace.tasks.complete', $t) }}" class="mt-3"
+                        <form method="POST" action="{{ route('marketplace.tasks.complete', $t) }}" class="js-single-complete mt-3"
                               onsubmit="return confirm('Tandai selesai? Pastikan {{ $t->type === \App\Models\MarketplaceTask::TYPE_POSTING ? 'postingan sudah tayang' : 'harga sudah diubah' }} di {{ $t->store->name }}.')">
                             @csrf
                             <button class="w-full rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold py-2">
@@ -206,4 +218,91 @@
             <div class="mt-3">{{ $recentDone->links() }}</div>
         @endif
     </section>
+
+    {{-- Form tersembunyi: card udah punya form sendiri (pin & selesai), dan form
+         gak boleh nested. Jadi checkbox dikumpulin JS, baru disuntik ke sini. --}}
+    <form method="POST" action="{{ route('marketplace.tasks.bulk-complete') }}" id="bulkForm" class="hidden">
+        @csrf
+        <div id="bulkInputs"></div>
+    </form>
+
+    <div id="bulkBar" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3
+                             rounded-2xl bg-slate-900 text-white px-5 py-3 shadow-2xl">
+        <span class="text-sm"><b id="bulkCount">0</b> tugas dipilih</span>
+        <button type="button" id="bulkSubmit"
+                class="rounded-lg bg-emerald-500 hover:bg-emerald-400 px-4 py-1.5 text-sm font-bold">
+            ✓ Selesaikan
+        </button>
+        <button type="button" id="bulkCancel" class="text-xs text-slate-400 hover:text-white">Batal</button>
+    </div>
+
+    <script>
+    (function () {
+        var toggle = document.getElementById('bulkToggle');
+        if (!toggle) return;
+
+        var bar    = document.getElementById('bulkBar');
+        var count  = document.getElementById('bulkCount');
+        var form   = document.getElementById('bulkForm');
+        var inputs = document.getElementById('bulkInputs');
+        var on     = false;
+
+        function picks()  { return document.querySelectorAll('.js-bulk-pick'); }
+        function singles(){ return document.querySelectorAll('.js-single-complete'); }
+        function boxes()  { return document.querySelectorAll('.bulk-cb'); }
+        function checked(){ return Array.prototype.filter.call(boxes(), function (b) { return b.checked; }); }
+
+        function refresh() {
+            var n = checked().length;
+            count.textContent = n;
+            bar.classList.toggle('hidden', !on);
+
+            /* Card yang kepilih dikasih ring — 30 checkbox kecil di layar penuh
+               susah dipindai. Ring-nya keliatan dari jauh. */
+            boxes().forEach(function (b) {
+                var card = b.closest('[data-task-card]');
+                if (card) card.classList.toggle('ring-2', b.checked);
+                if (card) card.classList.toggle('ring-emerald-400', b.checked);
+            });
+        }
+
+        function setMode(v) {
+            on = v;
+            picks().forEach(function (e)  { e.classList.toggle('hidden', !on); });
+            /* Tombol per-card disembunyiin pas mode pilih — dua jalan nyelesaiin
+               tugas di layar yang sama itu bikin salah pencet. */
+            singles().forEach(function (e) { e.classList.toggle('hidden', on); });
+            toggle.textContent = on ? '✕ Batal Pilih' : '☑️ Pilih Tugas';
+            if (!on) boxes().forEach(function (b) { b.checked = false; });
+            refresh();
+        }
+
+        toggle.addEventListener('click', function () { setMode(!on); });
+        document.getElementById('bulkCancel').addEventListener('click', function () { setMode(false); });
+
+        document.addEventListener('change', function (e) {
+            if (e.target.classList.contains('bulk-cb')) refresh();
+        });
+
+        document.getElementById('bulkSubmit').addEventListener('click', function () {
+            var sel = checked();
+            if (!sel.length) return;
+
+            /* Konfirmasi WAJIB nyebut jumlahnya: nyelesaiin tugas posting itu bikin
+               kredit produktivitas atas nama orang yang mencet. Salah pencet "pilih
+               semua" = 30 kredit palsu. Bisa di-undo, tapi mending jangan kejadian. */
+            if (!confirm('Tandai ' + sel.length + ' tugas sebagai selesai? Pastikan semuanya memang sudah dikerjakan.')) return;
+
+            inputs.innerHTML = '';
+            sel.forEach(function (b) {
+                var i = document.createElement('input');
+                i.type  = 'hidden';
+                i.name  = 'task_ids[]';
+                i.value = b.value;
+                inputs.appendChild(i);
+            });
+            form.submit();
+        });
+    })();
+    </script>
 @endsection

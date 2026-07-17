@@ -84,6 +84,9 @@
                     <tr class="hover:bg-slate-50 {{ $p->isArchived() ? 'opacity-50' : '' }}">
                         <td class="px-4 py-2.5 font-semibold">
                             {{ $p->name }}
+                            @if($p->is_bundle)
+                                <span class="ml-1 px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[10px]">📦 Bundle</span>
+                            @endif
                             @if($p->isArchived())
                                 <span class="ml-1 px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 text-[10px]">arsip</span>
                                 @if($p->replacement)

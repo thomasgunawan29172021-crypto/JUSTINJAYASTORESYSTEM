@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Enums\LeaveStatus;
-// use App\Enums\LeaveType;
+use App\Enums\LeaveType;
 use App\Models\Attendance;
 use App\Models\Holiday;
 use App\Models\LeaveRequest;
@@ -37,7 +37,13 @@ class AttendanceStatusResolver
             ->whereDate('work_date', $date)->first();
 
         // 2. Ada leave yang cover tanggal ini?
+        //
+        // whereIn type WAJIB: ganti jadwal BUKAN ketidakhadiran — stafnya tetap masuk.
+        // Tanpa filter ini, step 2 balik DIBAYAR dan step 3 (cek hadir) gak pernah
+        // kejalan, jadi orang yang beneran kerja kecatat "Dibayar (leave)".
+        // Gajinya aman, tapi rekapnya bohong.
         $leave = LeaveRequest::where('user_id', $user->id)
+            ->whereIn('type', LeaveType::absenceValues())
             ->whereNotIn('status', [LeaveStatus::Rejected->value, LeaveStatus::Expired->value])
             ->where('date_from', '<=', $date)
             ->where('date_to', '>=', $date)
@@ -96,8 +102,12 @@ class AttendanceStatusResolver
         }
 
         // 2. Leave yang cover tanggal ini (list sudah urut id desc → first = latest id)
+        //
+        // isAbsence() difilter DI SINI, bukan diserahin ke pemanggil: kalau pemanggil
+        // lupa, orang yang ganti jadwal kecatat "Dibayar" padahal masuk — dan gagalnya
+        // senyap. Lebih murah ngecek dua kali daripada ketauan sebulan kemudian.
         $leave = $leaves->first(
-            fn ($l) => $l->date_from->lte($date) && $l->date_to->gte($date)
+            fn ($l) => $l->type->isAbsence() && $l->date_from->lte($date) && $l->date_to->gte($date)
         );
 
         if ($leave) {

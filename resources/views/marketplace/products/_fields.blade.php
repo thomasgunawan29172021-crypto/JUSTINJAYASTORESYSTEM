@@ -5,6 +5,10 @@
     $pct = fn ($v) => $v === null || $v === ''
         ? ''
         : rtrim(rtrim(number_format((float) $v, 2, ',', ''), '0'), ',');
+    $isBundle = (bool) old('is_bundle', $p?->is_bundle);
+    $oldComponents = old('components') ?? ($p?->bundleItems?->map(fn ($i) => [
+        'id' => $i->component_id, 'qty' => $i->qty,
+    ])->all() ?? []);
 @endphp
 
 <div>
@@ -36,6 +40,44 @@
             <option value="{{ $b->id }}" @selected(old('brand_id', $p?->brand_id) == $b->id)>{{ $b->name }}</option>
         @endforeach
     </select>
+</div>
+
+@if($p === null)
+    <label class="flex items-center gap-2 text-sm text-slate-600 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2.5">
+        <input type="checkbox" name="is_bundle" value="1" id="isBundle" @checked($isBundle) class="rounded">
+        <span><b>Produk bundle</b> — gabungan beberapa produk. Modalnya dihitung otomatis dari isinya.</span>
+    </label>
+@elseif($p->is_bundle)
+    <div class="rounded-lg bg-violet-50 border border-violet-200 px-3 py-2.5 text-sm text-violet-800">
+        📦 <b>Produk bundle</b> — modal dihitung otomatis dari komponen di bawah.
+        <span class="text-violet-600 text-xs">Status bundle gak bisa diubah; kalau salah, hapus lalu bikin ulang.</span>
+    </div>
+    <input type="hidden" name="is_bundle" value="1">
+@endif
+
+<div id="bundleBox" class="{{ $isBundle ? '' : 'hidden' }} border-t border-slate-100 pt-4">
+    <p class="text-xs font-semibold text-slate-600 mb-1">📦 Isi Bundle</p>
+    <p class="text-[11px] text-slate-400 mb-2">
+        Modal bundle = total modal komponen <b>setelah program brand masing-masing</b>.
+        Program brand bundle ini sendiri gak dipotong lagi — biar gak dobel.
+    </p>
+
+    <div id="bundleRows" class="space-y-2"></div>
+
+    <button type="button" id="bundleAdd"
+            class="mt-2 rounded-lg bg-white border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:border-emerald-400">
+        + Tambah komponen
+    </button>
+
+    <div id="bundleModal" class="hidden mt-3 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-sm">
+        <span class="text-slate-500 text-xs">Modal bundle:</span>
+        <b id="bundleModalAfter" class="text-slate-800">—</b>
+        <span id="bundleModalNote" class="text-[11px] text-slate-400"></span>
+    </div>
+
+    @if($components->isEmpty())
+        <p class="text-xs text-amber-600 mt-2">Belum ada produk biasa yang bisa dijadiin komponen.</p>
+    @endif
 </div>
 
 <div class="grid sm:grid-cols-3 gap-3">
@@ -72,8 +114,8 @@
     </div>
 </div>
 
-<div class="grid sm:grid-cols-3 gap-3">
-    <div>
+<div class="grid sm:grid-cols-3 gap-3" id="costBox">
+    <div id="costPriceCell">
         <label class="block text-xs font-semibold text-slate-600 mb-1">Harga beli <span class="text-rose-500">(rahasia)</span></label>
         <input type="text" inputmode="numeric" name="cost_price" value="{{ $rp(old('cost_price', $p?->cost_price ?? 0)) }}"
                placeholder="0" class="money-input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
@@ -133,6 +175,82 @@
 </div>
 <script>
 (function () {
+    var box   = document.getElementById('bundleBox');
+    if (!box) return;
+
+    var rows  = document.getElementById('bundleRows');
+    var add   = document.getElementById('bundleAdd');
+    var toggle= document.getElementById('isBundle');
+    var cell  = document.getElementById('costPriceCell');
+
+    var OPTS = @json($components->map(fn ($c) => ['id' => $c->id, 'name' => $c->name]));
+    var INIT = @json(array_values($oldComponents));
+
+    function addRow(id, qty) {
+        var wrap = document.createElement('div');
+        wrap.className = 'flex gap-2 items-center';
+        wrap.innerHTML =
+            '<select class="bundle-id flex-1 min-w-0 rounded-lg border border-slate-300 px-2 py-1.5 text-sm bg-white">' +
+                '<option value="">— pilih produk —</option>' +
+                OPTS.map(function (o) {
+                    return '<option value="' + o.id + '"' + (String(o.id) === String(id) ? ' selected' : '') + '>' +
+                           o.name.replace(/</g, '&lt;') + '</option>';
+                }).join('') +
+            '</select>' +
+            '<input type="number" min="1" value="' + (qty || 1) + '" class="bundle-qty w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-sm" title="Jumlah">' +
+            '<button type="button" class="bundle-del w-8 h-8 rounded-lg bg-slate-100 text-slate-400 hover:text-rose-500 shrink-0">×</button>';
+        rows.appendChild(wrap);
+        renumber();
+    }
+
+    /* Nama input di-generate ulang tiap kali baris berubah — kalau nomornya bolong
+       (misal baris tengah dihapus), PHP nerimanya tetap array rapat. */
+    function renumber() {
+        Array.prototype.forEach.call(rows.children, function (r, i) {
+            r.querySelector('.bundle-id').name  = 'components[' + i + '][id]';
+            r.querySelector('.bundle-qty').name = 'components[' + i + '][qty]';
+        });
+    }
+
+    function applyMode() {
+        /* Deteksi mode SAMA kayak refresh(): checkbox (create) ATAU hidden input
+           (edit bundle). Kalau gak ada input is_bundle sama sekali (= edit produk
+           BIASA), mode OFF — bukan default true. Kalau nebak true, form edit produk
+           biasa bakal nyembunyiin "Harga beli" & munculin box bundle yang salah. */
+        var el = box.closest('form').querySelector('[name="is_bundle"]');
+        var on = el ? (el.type === 'checkbox' ? el.checked : true) : false;
+        box.classList.toggle('hidden', !on);
+        /* Modal bundle itu turunan — kolomnya disembunyiin biar gak keliatan
+           kayak dua sumber kebenaran. Controller juga maksa 0. */
+        if (cell) cell.classList.toggle('hidden', on);
+    }
+
+    INIT.forEach(function (c) { addRow(c.id, c.qty); });
+    if (!INIT.length) addRow('', 1);
+    applyMode();
+
+    add.addEventListener('click', function () { addRow('', 1); });
+
+    rows.addEventListener('click', function (e) {
+        if (e.target.closest('.bundle-del')) {
+            e.target.closest('.flex').remove();
+            renumber();
+            if (window.__recoRefresh) window.__recoRefresh();
+        }
+    });
+
+    rows.addEventListener('input', function () {
+        if (window.__recoRefresh) window.__recoRefresh();
+    });
+
+    toggle && toggle.addEventListener('change', function () {
+        applyMode();
+        if (window.__recoRefresh) window.__recoRefresh();
+    });
+})();
+</script>
+<script>
+(function () {
     var panel = document.getElementById('reco-panel');
     if (!panel) return;
 
@@ -162,6 +280,22 @@
 
     function render(data) {
         rows = data.rows || [];
+
+        /* Modal bundle — read-only, angkanya dari server. */
+        var mBox = document.getElementById('bundleModal');
+        if (mBox) {
+            var isB = document.getElementById('bundleBox');
+            var show = isB && !isB.classList.contains('hidden') && data.modal && data.modal.raw > 0;
+            mBox.classList.toggle('hidden', !show);
+
+            if (show) {
+                document.getElementById('bundleModalAfter').textContent = 'Rp ' + group(data.modal.after);
+                document.getElementById('bundleModalNote').textContent =
+                    data.modal.after !== data.modal.raw
+                        ? '(mentah Rp ' + group(data.modal.raw) + ', setelah program komponen & tambahan)'
+                        : '(belum ada potongan program)';
+            }
+        }
 
         if (data.blockers && data.blockers.length) {
             applyAll.classList.add('hidden');
@@ -215,7 +349,20 @@
         return out;
     }
 
+    function bundleComponents() {
+        var out = [];
+        form.querySelectorAll('#bundleRows > div').forEach(function (r) {
+            var id  = r.querySelector('.bundle-id');
+            var qty = r.querySelector('.bundle-qty');
+            if (id && id.value) out.push({ id: id.value, qty: qty.value || 1 });
+        });
+        return out;
+    }
+
     function refresh() {
+        var bundleEl = form.querySelector('[name="is_bundle"]');
+        var isBundle = bundleEl ? (bundleEl.type === 'checkbox' ? bundleEl.checked : true) : false;
+
         fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -224,6 +371,8 @@
                 brand_id:    val('brand_id'),
                 category_id: val('category_id'),
                 cost_price:  digits(val('cost_price')),
+                is_bundle:   isBundle,
+                components:  isBundle ? bundleComponents() : [],
                 program_extra_percent: val('program_extra_percent').replace(',', '.'),
                 program_extra_amount:  digits(val('program_extra_amount')),
                 prices:      typedPrices()
@@ -236,6 +385,9 @@
 
     /* Debounce: Thomas ngetik "1500000" = 7 keystroke. Tanpa ini, 7 request. */
     function schedule() { clearTimeout(timer); timer = setTimeout(refresh, 400); }
+
+    /* Dipanggil dari script bundle di atas — dua IIFE gak bisa saling akses. */
+    window.__recoRefresh = schedule;
 
     ['brand_id', 'category_id', 'cost_price', 'program_extra_percent', 'program_extra_amount'].forEach(function (n) {
         var el = q(n);

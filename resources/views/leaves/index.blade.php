@@ -39,6 +39,23 @@
                 </div>
             </div>
 
+            <div id="time-box" class="hidden grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Jam masuk *</label>
+                    <input type="time" name="start_time" value="{{ old('start_time') }}"
+                           class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Jam pulang *</label>
+                    <input type="time" name="end_time" value="{{ old('end_time') }}"
+                           class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                </div>
+                <p class="col-span-2 text-[11px] text-slate-400 -mt-1">
+                    Anda tetap masuk kerja, cuma jamnya digeser. CEO bisa mengubah jam ini saat menyetujui.
+                    Jam berlaku sama untuk semua tanggal di rentang. Hari libur Anda tetap libur.
+                </p>
+            </div>
+
             <div>
                 <label class="block text-xs font-semibold text-slate-600 mb-1">Alasan *</label>
                 <textarea name="reason" rows="2" required
@@ -78,7 +95,11 @@
                             </div>
                             <p class="text-xs text-slate-500 mt-0.5">
                                 {{ $r->date_from->translatedFormat('d M') }} – {{ $r->date_to->translatedFormat('d M Y') }}
-                                ({{ $r->days() }} hari) · {{ $r->reason }}
+                                ({{ $r->days() }} hari)
+                                @if($r->start_time)
+                                    · <b class="text-slate-600">{{ substr($r->start_time, 0, 5) }}–{{ substr($r->end_time, 0, 5) }}</b>
+                                @endif
+                                · {{ $r->reason }}
                             </p>
                             @if($r->status === \App\Enums\LeaveStatus::Approved)
                                 <p class="text-[11px] mt-1 {{ $r->is_paid ? 'text-emerald-600' : 'text-rose-600' }}">
@@ -108,4 +129,24 @@
             @endif
         </div>
     </div>
+
+    <script>
+    (function () {
+        var sel  = document.getElementById('leave-type');
+        var time = document.getElementById('time-box');
+        var att  = document.getElementById('attachment-box');
+        if (!sel) return;
+
+        function apply() {
+            var v = sel.value;
+            time.classList.toggle('hidden', v !== 'ganti_jadwal');
+            /* Lampiran cuma relevan buat sakit (surat dokter). Ganti jadwal gak
+               butuh, dan nampilin field yang gak kepakai bikin orang ragu. */
+            if (att) att.classList.toggle('hidden', v === 'ganti_jadwal');
+        }
+
+        sel.addEventListener('change', apply);
+        apply();
+    })();
+    </script>
 @endsection

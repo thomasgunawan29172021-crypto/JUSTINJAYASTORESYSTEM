@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Attendance;
 use App\Models\Branch;
+use App\Models\LeaveRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -64,7 +65,13 @@ class AttendanceController extends Controller
 
         $late = 0;
         if (! $isOffDay) {
-            $scheduled = today()->setTimeFromTimeString($todayDay->clock_in_time);
+            // Ganti jadwal yang DISETUJUI menggeser jam masuk hari ini.
+            // Sengaja di dalam ! $isOffDay: ganti jadwal cuma menggeser JAM, bukan
+            // bikin hari libur jadi hari kerja. Nambah hari kerja = ubah jadwal, bukan izin.
+            $override  = LeaveRequest::scheduleOverrideFor($user->id, today());
+            $startTime = $override?->start_time ?? $todayDay->clock_in_time;
+
+            $scheduled = today()->setTimeFromTimeString($startTime);
             // Menit MENTAH — toleransi 5 menit dinilai di Attendance::isLate(), bukan dibakar ke data
             $late = now()->greaterThan($scheduled) ? (int) $scheduled->diffInMinutes(now()) : 0;
         }

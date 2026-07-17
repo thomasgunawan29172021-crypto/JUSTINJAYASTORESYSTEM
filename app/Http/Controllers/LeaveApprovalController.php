@@ -29,6 +29,12 @@ class LeaveApprovalController extends Controller
             'decision'      => ['required', Rule::in(['approve', 'reject'])],
             'decision_note' => ['nullable', 'string', 'max:500'],
             'is_paid'       => ['nullable', 'boolean'],
+            // CEO boleh mengubah jam usulan staf saat menyetujui — pola yang sama
+            // dengan override is_paid di bawah.
+            'start_time'    => ['nullable', 'date_format:H:i'],
+            'end_time'      => ['nullable', 'date_format:H:i', 'after:start_time'],
+        ], [
+            'end_time.after' => 'Jam pulang harus setelah jam masuk.',
         ]);
 
         if ($leave->status !== LeaveStatus::Pending) {
@@ -52,15 +58,71 @@ class LeaveApprovalController extends Controller
             }
         }
 
-        $leave->update([
+        $payload = [
             'status'        => $approved ? LeaveStatus::Approved : LeaveStatus::Rejected,
             'is_paid'       => $isPaid,
             'decided_by'    => $request->user()->id,
             'decided_at'    => now(),
             'decision_note' => $data['decision_note'] ?? null,
-        ]);
+        ];
+
+        // Jam final = punya CEO kalau dia isi, kalau nggak pakai usulan staf.
+        // array_merge, BUKAN operator `+` — `+` gak nimpa key yang udah ada, dan
+        // pola itu udah bikin bug NOT NULL berkali-kali di project ini.
+        if ($approved && $leave->type->needsTime()) {
+            $payload = array_merge($payload, [
+                'start_time' => $data['start_time'] ?? $leave->start_time,
+                'end_time'   => $data['end_time'] ?? $leave->end_time,
+            ]);
+        }
+
+        $leave->update($payload);
+
+        if ($approved && $leave->type->needsTime()) {
+            $this->recomputeLateMinutes($leave->fresh());
+        }
 
         return back()->with('ok', 'Pengajuan '.($approved ? 'disetujui' : 'ditolak').'.');
+    }
+
+    /**
+     * Hitung ulang telat buat absen yang TERLANJUR tercatat sebelum ganti jadwal
+     * disetujui.
+     *
+     * `late_minutes` itu kolom TERSIMPAN — dikunci saat clock-in, bukan dihitung ulang
+     * tiap dibaca. Jadi kalau staf absen jam 10 pagi dan CEO baru menyetujui ganti
+     * jadwalnya siang harinya, angka telatnya terlanjur 60 menit dan gak ikut berubah
+     * sendiri. Tanpa method ini, orang tetap kecatat TELAT padahal izinnya disetujui.
+     *
+     * Rentangnya beberapa hari doang, jadi loop kecil — aman.
+     *
+     * ⚠️ Belum ada kebalikannya: kalau ganti jadwal disetujui lalu DIHAPUS, telatnya
+     * gak balik sendiri. Koreksi manual ada di Rekap Absensi.
+     */
+    protected function recomputeLateMinutes(LeaveRequest $leave): void
+    {
+        if (! $leave->start_time) {
+            return;
+        }
+
+        $attendances = \App\Models\Attendance::where('user_id', $leave->user_id)
+            ->whereBetween('work_date', [$leave->date_from, $leave->date_to])
+            ->whereNotNull('clock_in_at')
+            ->get();
+
+        foreach ($attendances as $a) {
+            if ($a->is_off_day) {
+                continue; // hari libur gak kenal telat
+            }
+
+            $scheduled = $a->work_date->copy()->setTimeFromTimeString($leave->start_time);
+
+            $a->update([
+                'late_minutes' => $a->clock_in_at->greaterThan($scheduled)
+                    ? (int) $scheduled->diffInMinutes($a->clock_in_at)
+                    : 0,
+            ]);
+        }
     }
 
     /**

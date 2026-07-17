@@ -29,18 +29,27 @@ class LeaveRequestController extends Controller
             'date_from'  => ['required', 'date'],
             'date_to'    => ['required', 'date', 'after_or_equal:date_from'],
             'reason'     => ['required', 'string', 'max:500'],
+            // Ganti jadwal wajib jam — tanpa itu gak ada yang bisa dipakai
+            // ngegeser perhitungan telat.
+            'start_time' => ['required_if:type,ganti_jadwal', 'nullable', 'date_format:H:i'],
+            'end_time'   => ['required_if:type,ganti_jadwal', 'nullable', 'date_format:H:i', 'after:start_time'],
             // Sakit wajib lampirkan surat dokter (foto/scan)
             'attachment' => ['required_if:type,sakit', 'nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:4096'],
         ], [
             'attachment.required_if' => 'Pengajuan sakit wajib melampirkan surat dokter.',
+            'start_time.required_if' => 'Ganti jadwal wajib isi jam masuk.',
+            'end_time.required_if'   => 'Ganti jadwal wajib isi jam pulang.',
+            'end_time.after'         => 'Jam pulang harus setelah jam masuk.',
         ]);
 
         $user = $request->user();
         $type = LeaveType::from($data['type']);
 
-        if (LeaveRequest::overlapExists($user->id, $data['date_from'], $data['date_to'])) {
+        if (LeaveRequest::overlapExists($user->id, $data['date_from'], $data['date_to'], $type)) {
             return back()->withInput()->withErrors([
-                'date_from' => 'Tanggal bentrok dengan pengajuan Anda yang masih menunggu / sudah disetujui.',
+                'date_from' => $type === LeaveType::GantiJadwal
+                    ? 'Sudah ada pengajuan ganti jadwal Anda di tanggal itu.'
+                    : 'Tanggal bentrok dengan pengajuan Anda yang masih menunggu / sudah disetujui.',
             ]);
         }
 
@@ -64,6 +73,10 @@ class LeaveRequestController extends Controller
             'type'            => $type,
             'date_from'       => $data['date_from'],
             'date_to'         => $data['date_to'],
+            // Jam cuma buat ganti jadwal — tipe lain dipaksa null biar gak ada
+            // sisa data yang nyasar kalau orang gonta-ganti dropdown sebelum kirim.
+            'start_time'      => $type->needsTime() ? $data['start_time'] : null,
+            'end_time'        => $type->needsTime() ? $data['end_time'] : null,
             'reason'          => $data['reason'],
             'attachment_path' => $request->hasFile('attachment')
                 ? $request->file('attachment')->store("leaves/{$user->id}", config('filesystems.default'))

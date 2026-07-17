@@ -140,6 +140,86 @@ class TaskController extends Controller
         return back()->with('ok', "Tugas \"{$task->typeLabel()} — {$task->product->name}\" selesai.");
     }
 
+    /**
+     * Selesaikan banyak tugas sekaligus.
+     *
+     * BEST-EFFORT, bukan all-or-nothing: kalau 10 dipilih dan 2 bukan haknya, yang 8
+     * tetap jalan. Kalau semua dibatalin gara-gara 1 gagal, orang bakal nyoba ulang
+     * berkali-kali sambil nebak-nebak yang mana biangnya.
+     *
+     * Tetap dibungkus transaction: tiap tugas yang lolos bikin DUA tulisan (task +
+     * Posting), dan dua-duanya harus jadi atau gak sama sekali.
+     */
+    public function bulkComplete(Request $request)
+    {
+        $data = $request->validate([
+            // max:200 — pagar biar gak ada yang ngirim ribuan id sekaligus.
+            'task_ids'   => ['required', 'array', 'max:200'],
+            'task_ids.*' => ['integer'],
+        ], [
+            'task_ids.required' => 'Belum ada tugas yang dipilih.',
+        ]);
+
+        $user  = $request->user();
+        $isCeo = $user->role->isCeo();
+
+        $tasks = MarketplaceTask::with('product')
+            ->whereIn('id', $data['task_ids'])
+            ->where('status', MarketplaceTask::STATUS_PENDING)
+            ->get();
+
+        // Hak PIC ditarik SEKALI. Kalau dicek per tugas pakai ->exists() di dalam loop,
+        // 50 tugas = 50 query — persis N+1 yang udah bikin masalah di dashboard.
+        $picKeys = collect();
+        if (! $isCeo) {
+            $picKeys = BrandStorePic::where('user_id', $user->id)
+                ->get(['brand_id', 'store_id'])
+                ->map(fn ($r) => $r->brand_id.'|'.$r->store_id)
+                ->flip();
+        }
+
+        $done = 0;
+
+        DB::transaction(function () use ($tasks, $user, $isCeo, $picKeys, &$done) {
+            foreach ($tasks as $task) {
+                if (! $isCeo && ! $picKeys->has($task->product->brand_id.'|'.$task->store_id)) {
+                    continue; // bukan PIC brand ini di toko itu — lewati diam-diam, dihitung di bawah
+                }
+
+                $task->update([
+                    'status'       => MarketplaceTask::STATUS_DONE,
+                    'completed_by' => $user->id,
+                    'completed_at' => now(),
+                ]);
+
+                // Selesai posting = produk resmi tercatat terposting di toko ini.
+                // Inilah yang bikin perubahan harga berikutnya men-generate tugas update.
+                if ($task->type === MarketplaceTask::TYPE_POSTING) {
+                    Posting::firstOrCreate(
+                        ['product_id' => $task->product_id, 'store_id' => $task->store_id],
+                        ['posted_by' => $user->id, 'posted_at' => now()]
+                    );
+                }
+
+                $done++;
+            }
+        });
+
+        // Selisih = gabungan dari: bukan hak dia, keburu diselesaikan orang lain,
+        // atau id-nya udah gak ada. Gak dipisah-pisah — yang dia butuh cuma tau
+        // "gak semuanya kena", terus liat sendiri sisanya di antrian.
+        $skipped = count($data['task_ids']) - $done;
+
+        $msg = "{$done} tugas ditandai selesai.";
+        if ($skipped > 0) {
+            $msg .= " {$skipped} dilewati (bukan tugas Anda, atau sudah selesai).";
+        }
+
+        return $done > 0
+            ? back()->with('ok', $msg)
+            : back()->withErrors(['task' => $msg]);
+    }
+
     public function undo(Request $request, MarketplaceTask $task)
     {
         $user = $request->user();

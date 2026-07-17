@@ -99,6 +99,7 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     // ---------------- TUGAS MARKETPLACE (PIC toko + CEO) ----------------
     Route::get('/marketplace/tasks',                  [TaskController::class, 'index'])->name('marketplace.tasks.index');
+    Route::post('/marketplace/tasks/bulk-complete',    [TaskController::class, 'bulkComplete'])->name('marketplace.tasks.bulk-complete');
     Route::post('/marketplace/tasks/{task}/complete', [TaskController::class, 'complete'])->name('marketplace.tasks.complete');
     Route::post('/marketplace/tasks/{task}/undo',     [TaskController::class, 'undo'])->name('marketplace.tasks.undo');
     Route::post('/marketplace/tasks/{task}/pin',      [TaskController::class, 'togglePin'])->name('marketplace.tasks.pin');

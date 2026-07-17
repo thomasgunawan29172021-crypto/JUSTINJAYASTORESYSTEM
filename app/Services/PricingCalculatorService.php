@@ -100,12 +100,18 @@ class PricingCalculatorService
             $blockers[] = 'Pajak belum diset di Pengaturan Harga.';
         }
 
-        if ($product->cost_price <= 0) {
-            $blockers[] = 'Modal produk masih 0 — isi harga beli dulu.';
+        // rawCost(), BUKAN cost_price: bundle kolom itu selalu 0 (modalnya turunan
+        // dari komponen), jadi baca mentah bikin blocker palsu di setiap bundle.
+        if ($product->is_bundle && $product->bundleItems->isEmpty()) {
+            $blockers[] = 'Bundle belum punya komponen — tambahkan produk isinya dulu.';
+        } elseif ($product->rawCost() <= 0) {
+            $blockers[] = $product->is_bundle
+                ? 'Modal komponen bundle masih 0 — isi harga beli produk komponennya dulu.'
+                : 'Modal produk masih 0 — isi harga beli dulu.';
         } elseif ($product->costAfterProgram() <= 0) {
-            // Potongan program lebih besar dari modal → M nol/negatif → harga jual
-            // ikut ngaco. Hampir pasti salah ketik, jadi tolak dengan jelas.
-            $blockers[] = 'Potongan program lebih besar dari modal — cek program brand & tambahan diskon produk.';
+            // Potongan program lebih besar dari modal → M nol/negatif → harga ngaco.
+            // Hampir pasti salah ketik, jadi tolak dengan jelas.
+            $blockers[] = 'Potongan program lebih besar dari modal — cek program brand & tambahan diskon.';
         }
 
         return $blockers;

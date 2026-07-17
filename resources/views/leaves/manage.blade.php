@@ -37,6 +37,14 @@
                                     {{ $r->date_from->translatedFormat('d M') }} – {{ $r->date_to->translatedFormat('d M Y') }}
                                     ({{ $r->days() }} hari)
                                 </p>
+                                @if($r->start_time)
+                                    <p class="text-xs mt-0.5">
+                                        <span class="px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 text-[11px] font-semibold">
+                                            ⏰ Usul jam {{ substr($r->start_time, 0, 5) }}–{{ substr($r->end_time, 0, 5) }}
+                                        </span>
+                                        <span class="text-slate-400 text-[11px]">tetap masuk, cuma jamnya geser</span>
+                                    </p>
+                                @endif
                                 @php $age = (int) $r->created_at->diffInDays(now()); @endphp
                                 <p class="text-[11px] mt-0.5 {{ $age >= 3 ? 'text-rose-600 font-semibold' : 'text-slate-400' }}">
                                     Diajukan {{ $age }} hari lalu{{ $age >= 3 ? ' — kedaluwarsa otomatis di hari ke-7!' : '' }}
@@ -52,6 +60,16 @@
                         <form method="POST" action="{{ route('leaves.decide', $r) }}"
                               class="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
                             @csrf
+                            @if($r->type->needsTime())
+                                <div class="flex items-center gap-1.5 whitespace-nowrap">
+                                    <span class="text-xs text-slate-500">Jam final:</span>
+                                    <input type="time" name="start_time" value="{{ substr($r->start_time, 0, 5) }}"
+                                           class="rounded-lg border border-slate-300 px-2 py-1.5 text-xs">
+                                    <span class="text-xs text-slate-400">–</span>
+                                    <input type="time" name="end_time" value="{{ substr($r->end_time, 0, 5) }}"
+                                           class="rounded-lg border border-slate-300 px-2 py-1.5 text-xs">
+                                </div>
+                            @endif
                             <input type="text" name="decision_note" placeholder="Catatan (opsional)"
                                    class="flex-1 min-w-40 rounded-lg border border-slate-300 px-3 py-2 text-sm">
 

@@ -84,6 +84,7 @@ class ProductController extends Controller
         [$created, $marked] = DB::transaction(function () use ($data, $request, $tasks) {
             $product = Product::create($data);
             $this->syncPrices($product, $request);
+            $this->syncBundleItems($product, $request);
 
             return $tasks->generateForNewProduct(
                 $product,
@@ -98,7 +99,7 @@ class ProductController extends Controller
 
     public function edit(Product $product, PostingTaskService $tasks)
     {
-        $product->load(['prices', 'postings.poster', 'postings.corrector']);
+        $product->load(['prices', 'postings.poster', 'postings.corrector', 'bundleItems.component']);
 
         return view('marketplace.products.edit', $this->formData() + [
             'product'      => $product,
@@ -112,6 +113,7 @@ class ProductController extends Controller
 
         $taskCount = DB::transaction(function () use ($product, $data, $request, $tasks) {
             $product->update($data);
+            $this->syncBundleItems($product, $request);
             $changed = $this->syncPrices($product, $request);
 
             return $product->isArchived() ? 0 : $tasks->generateForPriceChange($product, $changed);
@@ -484,6 +486,10 @@ class ProductController extends Controller
             'cost_price'  => ['nullable', 'integer', 'min:0'],
             'program_extra_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'program_extra_amount'  => ['nullable', 'integer', 'min:0'],
+            'is_bundle'       => ['nullable', 'boolean'],
+            'components'      => ['nullable', 'array'],
+            'components.*.id' => ['nullable', 'integer'],
+            'components.*.qty'=> ['nullable', 'integer', 'min:1'],
             'prices'      => ['nullable', 'array'],
         ]);
 
@@ -497,11 +503,40 @@ class ProductController extends Controller
             'program_extra_amount'  => $data['program_extra_amount'] ?? null,
         ]);
 
-        // Relasi di-set EKSPLISIT: costAfterProgram() butuh program brand, dan model
-        // ini gak pernah disimpan jadi jangan andelin lazy-load.
-        $product->setRelation('brand', $data['brand_id']
-            ? Brand::withTrashed()->find($data['brand_id'])
-            : null);
+        $product->is_bundle = (bool) ($data['is_bundle'] ?? false);
+
+        // Relasi di-set EKSPLISIT: model ini gak pernah disimpan, jadi lazy-load
+        // bakal query pakai id null dan balik kosong.
+        if ($product->is_bundle) {
+            $rows = (array) ($data['components'] ?? []);
+
+            // 1 query buat semua komponen — jangan find() di dalam loop.
+            $found = Product::with('brand')
+                ->whereIn('id', array_filter(array_column($rows, 'id')))
+                ->get()->keyBy('id');
+
+            $items = collect($rows)
+                ->map(function (array $row) use ($found) {
+                    $component = $found->get((int) ($row['id'] ?? 0));
+
+                    if (! $component) {
+                        return null;
+                    }
+
+                    $item = new \App\Models\BundleItem(['qty' => max(1, (int) ($row['qty'] ?? 1))]);
+                    $item->setRelation('component', $component);
+
+                    return $item;
+                })
+                ->filter()->values();
+
+            $product->setRelation('bundleItems', $items);
+        } else {
+            $product->setRelation('brand', $data['brand_id']
+                ? Brand::withTrashed()->find($data['brand_id'])
+                : null);
+            $product->setRelation('bundleItems', collect());
+        }
 
         $typed = [];
         foreach ((array) ($data['prices'] ?? []) as $key => $value) {
@@ -536,9 +571,15 @@ class ProductController extends Controller
         ], $result['rows']);
 
         // breakdown SENGAJA dibuang — keputusan Thomas: form Produk cuma angka jadi.
+        // Modal ditampilkan read-only di form bundle. Dihitung di SINI, bukan di JS:
+        // JS gak boleh tau soal program bertingkat — itu cuma hidup di model.
         return response()->json([
             'blockers' => $result['blockers'],
             'rows'     => $rows,
+            'modal'    => [
+                'raw'   => (int) round($product->rawCost()),
+                'after' => (int) round($product->costAfterProgram()),
+            ],
         ]);
     }
 
@@ -601,6 +642,10 @@ class ProductController extends Controller
             'marketplaces' => Store::where('is_active', true)->pluck('marketplace')->unique()->values(),
             'allProducts'  => Product::whereNull('archived_at')->orderBy('name')->get(['id', 'name']),
             'stores'       => Store::where('is_active', true)->orderBy('marketplace')->orderBy('name')->get(),
+            // Kandidat komponen: produk biasa doang. Bundle gak boleh isi bundle —
+            // nested = rekursi, dan gak ada gunanya buat toko HP.
+            'components'   => Product::where('is_bundle', false)->whereNull('archived_at')
+                ->orderBy('name')->get(['id', 'name', 'cost_price']),
         ];
     }
 
@@ -624,6 +669,13 @@ class ProductController extends Controller
             'cost_price'    => ['nullable', 'integer', 'min:0'],
             'price_offline' => ['nullable', 'integer', 'min:0'],
             'price_grosir'  => ['nullable', 'integer', 'min:0'],
+            'is_bundle'          => ['nullable', 'boolean'],
+            'components'         => ['nullable', 'array'],
+            // Rule::exists dikunci is_bundle=false — bundle di dalam bundle ditolak
+            // di level validasi, bukan cuma disembunyiin dari dropdown.
+            'components.*.id'    => ['nullable', 'integer',
+                Rule::exists('products', 'id')->where('is_bundle', false)],
+            'components.*.qty'   => ['nullable', 'integer', 'min:1'],
         ]);
 
         // Kolom harga NOT NULL di DB: kosong berarti 0.
@@ -642,6 +694,23 @@ class ProductController extends Controller
         $data['category_id']           = $data['category_id'] ?? null;
         $data['program_extra_percent'] = $data['program_extra_percent'] ?? null;
         $data['program_extra_amount']  = $data['program_extra_amount'] ?? null;
+
+        // is_bundle cuma bisa diset waktu BIKIN. Produk lama gak bisa disulap jadi
+        // bundle (dan sebaliknya) — itu ninggalin bundle_items yatim atau produk
+        // yang harganya tiba-tiba jadi turunan. Kalau salah pilih, hapus & bikin ulang.
+        if ($product === null) {
+            $data['is_bundle'] = (bool) ($data['is_bundle'] ?? false);
+        } else {
+            unset($data['is_bundle']);
+        }
+
+        // Modal bundle itu TURUNAN dari komponen — kolomnya dipaksa 0 biar gak ada
+        // dua sumber kebenaran. rawCost() emang gak baca kolom ini buat bundle.
+        if (($data['is_bundle'] ?? $product?->is_bundle) === true) {
+            $data['cost_price'] = 0;
+        }
+
+        unset($data['components']); // disimpan lewat syncBundleItems(), bukan mass-assign
 
         return $data;
     }
@@ -688,5 +757,38 @@ class ProductController extends Controller
         }
 
         return $changed;
+    }
+
+    /**
+     * Rebuild komponen bundle. Hapus-lalu-bikin, bukan diff: jumlah komponen dikit
+     * dan ini bikin urutan/qty selalu persis sama kayak yang di layar.
+     */
+    protected function syncBundleItems(Product $product, Request $request): void
+    {
+        if (! $product->is_bundle) {
+            return;
+        }
+
+        $rows = [];
+
+        foreach ((array) $request->input('components', []) as $row) {
+            $id  = (int) ($row['id'] ?? 0);
+            $qty = (int) ($row['qty'] ?? 0);
+
+            // Bundle gak boleh jadi komponen dirinya sendiri.
+            if ($id <= 0 || $qty <= 0 || $id === $product->id) {
+                continue;
+            }
+
+            // Produk sama dipilih dua kali → qty digabung, bukan error.
+            // (unique(bundle_id, component_id) bakal nolak duplikat di level DB.)
+            $rows[$id] = ($rows[$id] ?? 0) + $qty;
+        }
+
+        $product->bundleItems()->delete();
+
+        foreach ($rows as $componentId => $qty) {
+            $product->bundleItems()->create(['component_id' => $componentId, 'qty' => $qty]);
+        }
     }
 }
