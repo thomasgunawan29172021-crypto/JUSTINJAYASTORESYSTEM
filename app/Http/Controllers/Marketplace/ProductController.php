@@ -225,12 +225,30 @@ class ProductController extends Controller
         ]);
     }
 
-    public function import(Request $request)
+    public function import(Request $request, PostingTaskService $tasks)
     {
         $request->validate(['file' => ['required', 'file', 'mimes:csv,txt', 'max:10240']]);
 
         $handle = fopen($request->file('file')->getRealPath(), 'r');
-        $header = array_map(fn ($h) => strtolower(trim($h)), fgetcsv($handle, null, ',', '"', '') ?: []);
+
+        // Excel Mac (regional Indonesia) menyimpan pakai ';', dan export kita sendiri
+        // menaruh BOM + baris "sep=,". Tangani semuanya di sini.
+        $firstLine = (string) fgets($handle);
+        $firstLine = preg_replace('/^\xEF\xBB\xBF/', '', $firstLine); // buang BOM kalau ada
+
+        if (str_starts_with(strtolower(trim($firstLine)), 'sep=')) {
+            // Baris hint dari export kita: ambil delimiter-nya, JANGAN rewind (skip baris ini).
+            $delimiter = substr(trim($firstLine), 4, 1) ?: ',';
+        } else {
+            // File dari luar (Thomas edit manual): deteksi dari isi, balikin pointer ke awal.
+            $delimiter = substr_count($firstLine, ';') > substr_count($firstLine, ',') ? ';' : ',';
+            rewind($handle);
+        }
+
+        $header = array_map(fn ($h) => strtolower(trim($h)), fgetcsv($handle, null, $delimiter, '"', '') ?: []);
+        // Kasus rewind: BOM ikut kebaca jadi bagian nama kolom PERTAMA, dan trim() gak
+        // ngebuang dia (itu 3 byte UTF-8, bukan spasi). Tanpa ini "nama" gak pernah match.
+        $header[0] = preg_replace('/^\xEF\xBB\xBF/', '', $header[0] ?? '');
 
         if (! in_array('nama', $header) || ! in_array('brand', $header)) {
             return back()->withErrors(['file' => 'Kolom wajib tidak ditemukan: minimal harus ada "nama" dan "brand" di baris pertama.']);
@@ -245,11 +263,23 @@ class ProductController extends Controller
         $canSetPosting = $request->user()->role->isCeo();
 
         $created = 0; $updated = 0; $skipped = 0; $newBrands = [];
-        $posted = 0; $unposted = 0;
+        $posted = 0; $unposted = 0; $tasksCreated = 0;
 
-        DB::transaction(function () use ($handle, $header, $marketplaces, $postingColumns, $canSetPosting, &$created, &$updated, &$skipped, &$newBrands, &$posted, &$unposted) {
-            while (($raw = fgetcsv($handle, null, ',', '"', '')) !== false) {
-                $row = array_combine($header, array_pad($raw, count($header), null));
+        // " Rp142.000 " → 142000. Kosong → null (bukan 0 — beda makna).
+        $toInt = function ($v): ?int {
+            $digits = preg_replace('/\D/', '', trim((string) $v));
+
+            return $digits === '' ? null : (int) $digits;
+        };
+
+        DB::transaction(function () use ($handle, $header, $delimiter, $toInt, $tasks, $marketplaces, $postingColumns, $canSetPosting, &$created, &$updated, &$skipped, &$newBrands, &$posted, &$unposted, &$tasksCreated) {
+            while (($raw = fgetcsv($handle, null, $delimiter, '"', '')) !== false) {
+                // Trim per sel: Excel sering ninggalin spasi, dan " v " != "v" waktu dicek.
+                // (string) dulu — array_pad ngisi null, dan trim(null) deprecated di PHP 8.1+.
+                $row = array_map(
+                    fn ($v) => trim((string) $v),
+                    array_combine($header, array_pad($raw, count($header), null))
+                );
 
                 $name      = trim($row['nama'] ?? '');
                 $brandName = trim($row['brand'] ?? '');
@@ -264,9 +294,7 @@ class ProductController extends Controller
                     $newBrands[] = $brandName;
                 }
 
-                $num = fn ($key) => isset($row[$key]) && $row[$key] !== '' && $row[$key] !== null
-                    ? (int) preg_replace('/\D/', '', $row[$key])
-                    : null;
+                $num = fn ($key) => $toInt($row[$key] ?? null);
 
                 $product = Product::withTrashed()->firstOrNew(['name' => $name]);
                 $isNew   = ! $product->exists;
@@ -313,64 +341,81 @@ class ProductController extends Controller
 
                 // Matriks posting: kolom "post_{nama toko}" berisi v (sudah) / x (belum).
                 // Sel KOSONG = status toko itu tidak disentuh → CSV tanpa kolom ini tetap aman.
-                if (! $canSetPosting) {
-                    continue;
-                }
+                // Dulu ini `if (! $canSetPosting) continue;`. Diubah jadi blok karena
+                // sekarang ADA kode di bawahnya (auto-generate tugas) yang harus tetap
+                // jalan buat non-CEO — `continue` bakal melewatinya diam-diam.
+                if ($canSetPosting) {
+                    foreach ($postingColumns as $key => $store) {
+                        $cell = strtolower(trim((string) ($row[$key] ?? '')));
 
-                foreach ($postingColumns as $key => $store) {
-                    $cell = strtolower(trim((string) ($row[$key] ?? '')));
-
-                    if ($cell === '') {
-                        continue;
-                    }
-
-                    if (in_array($cell, ['v', 'ya', 'yes', 'y', '1', 'true', 'centang'], true)) {
-                        // posted_by = null → input mundur, TIDAK dikreditkan ke PIC mana pun.
-                        $posting = Posting::firstOrCreate(
-                            ['product_id' => $product->id, 'store_id' => $store->id],
-                            ['posted_by' => null, 'posted_at' => now()]
-                        );
-
-                        // Sudah posted sebelumnya → jangan sentuh apa pun (re-import file yang sama = nol perubahan).
-                        if (! $posting->wasRecentlyCreated) {
+                        if ($cell === '') {
                             continue;
                         }
 
-                        // Baru ditandai posted → tugas posting yang masih pending jadi basi.
-                        MarketplaceTask::where('type', MarketplaceTask::TYPE_POSTING)
-                            ->where('product_id', $product->id)
+                        if (in_array($cell, ['v', 'ya', 'yes', 'y', '1', 'true', 'centang'], true)) {
+                            // posted_by = null → input mundur, TIDAK dikreditkan ke PIC mana pun.
+                            $posting = Posting::firstOrCreate(
+                                ['product_id' => $product->id, 'store_id' => $store->id],
+                                ['posted_by' => null, 'posted_at' => now()]
+                            );
+
+                            // Sudah posted sebelumnya → jangan sentuh apa pun (re-import file yang sama = nol perubahan).
+                            if (! $posting->wasRecentlyCreated) {
+                                continue;
+                            }
+
+                            // Baru ditandai posted → tugas posting yang masih pending jadi basi.
+                            MarketplaceTask::where('type', MarketplaceTask::TYPE_POSTING)
+                                ->where('product_id', $product->id)
+                                ->where('store_id', $store->id)
+                                ->where('status', MarketplaceTask::STATUS_PENDING)
+                                ->delete();
+
+                            $posted++;
+
+                            continue;
+                        }
+
+                        // "x" = belum posting → hapus posting bila ada (koreksi CEO).
+                        // Tidak membuat tugas baru: backlog digenerate terpisah dari Dashboard MP.
+                        $removed = Posting::where('product_id', $product->id)
                             ->where('store_id', $store->id)
-                            ->where('status', MarketplaceTask::STATUS_PENDING)
                             ->delete();
 
-                        $posted++;
+                        if ($removed) {
+                            // Tugas update harga hanya berlaku untuk toko yang sudah posting → jadi basi.
+                            MarketplaceTask::where('type', MarketplaceTask::TYPE_PRICE_UPDATE)
+                                ->where('product_id', $product->id)
+                                ->where('store_id', $store->id)
+                                ->where('status', MarketplaceTask::STATUS_PENDING)
+                                ->delete();
 
-                        continue;
-                    }
-
-                    // "x" = belum posting → hapus posting bila ada (koreksi CEO).
-                    // Tidak membuat tugas baru: backlog digenerate terpisah dari Dashboard MP.
-                    $removed = Posting::where('product_id', $product->id)
-                        ->where('store_id', $store->id)
-                        ->delete();
-
-                    if ($removed) {
-                        // Tugas update harga hanya berlaku untuk toko yang sudah posting → jadi basi.
-                        MarketplaceTask::where('type', MarketplaceTask::TYPE_PRICE_UPDATE)
-                            ->where('product_id', $product->id)
-                            ->where('store_id', $store->id)
-                            ->where('status', MarketplaceTask::STATUS_PENDING)
-                            ->delete();
-
-                        $unposted++;
+                            $unposted++;
+                        }
                     }
                 }
+
+                // AUTO-GENERATE tugas posting (keputusan Thomas): toko target yang belum
+                // ditandai posting langsung dapat tugas di antrian PIC-nya.
+                // firstOrCreate di service = idempoten, re-import tidak menggandakan tugas.
+                //
+                // WAJIB sesudah matriks di atas: kalau jalan duluan, toko yang barusan
+                // ditandai "v" belum kecatat dan malah dapat tugas nyasar.
+                //
+                // intval WAJIB juga: service-nya pakai in_array(..., strict), dan driver DB
+                // bisa balikin store_id sebagai STRING — "3" !== 3, jadi toko yang sudah
+                // posting dianggap belum dan dapat tugas nyasar. Pola yang sama dipakai
+                // store() waktu baca posted_stores.
+                $postedIds = array_map('intval', Posting::where('product_id', $product->id)
+                    ->pluck('store_id')->all());
+
+                $tasksCreated += $tasks->generateForNewProduct($product, $postedIds)[0];
             }
         });
 
         fclose($handle);
 
-        $msg = "Import selesai: {$created} produk baru, {$updated} diperbarui, {$skipped} baris dilewati.";
+        $msg = "Import selesai: {$created} produk baru, {$updated} diperbarui, {$skipped} baris dilewati, {$tasksCreated} tugas posting dibuat.";
         if ($posted || $unposted) {
             $msg .= " Matriks posting: {$posted} ditandai sudah posting, {$unposted} dibatalkan.";
         }
@@ -430,6 +475,10 @@ class ProductController extends Controller
 
         return response()->streamDownload(function () use ($products, $marketplaces, $postingColumns, $header) {
             $out = fopen('php://output', 'w');
+            // BOM UTF-8 + hint "sep=," → Excel Mac & Windows sama-sama mecah kolom
+            // dengan benar apa pun setting regionalnya. Excel menyembunyikan baris sep=.
+            fwrite($out, "\xEF\xBB\xBF");
+            fwrite($out, "sep=,\r\n");
             fputcsv($out, $header, ',', '"', '');
 
             foreach ($products as $p) {
