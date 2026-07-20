@@ -4,6 +4,7 @@
     <a href="{{ route('marketplace.products.index') }}" class="text-sm text-slate-500 hover:underline">← Produk</a>
     <h1 class="text-xl font-bold mt-2 mb-5">Produk Baru</h1>
     <form method="POST" action="{{ route('marketplace.products.store') }}"
+          data-draft="product-create"
           class="bg-white rounded-xl border border-slate-200 p-5 max-w-2xl space-y-4">
         @csrf
         @include('marketplace.products._fields')

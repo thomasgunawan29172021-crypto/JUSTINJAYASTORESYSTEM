@@ -38,8 +38,8 @@
                         @csrf
                         <input type="hidden" name="type" value="{{ $type }}">
                         <input type="hidden" name="photo" class="rt-photo">
-                        <video autoplay playsinline muted class="rt-cam w-full max-w-xs rounded-xl bg-slate-900 aspect-video object-cover"></video>
-                        <img class="rt-preview hidden w-full max-w-xs rounded-xl aspect-video object-cover" alt="">
+                        <video autoplay playsinline muted class="rt-cam w-full max-w-xs rounded-xl bg-slate-900 aspect-video object-cover -scale-x-100"></video>
+                        <img class="rt-preview hidden w-full max-w-xs rounded-xl aspect-video object-cover -scale-x-100" alt="">
                         <canvas class="rt-canvas hidden"></canvas>
                         <div class="flex gap-2 mt-2 max-w-xs">
                             <button type="button" class="rt-capture flex-1 rounded-lg bg-slate-900 text-white text-xs font-semibold py-2">📸 Ambil</button>
@@ -101,9 +101,12 @@
                     <input type="hidden" name="longitude" id="inp-lng">
                     <input type="hidden" name="photo"     id="inp-photo">
 
+                    {{-- -scale-x-100 = preview di-mirror kayak ngaca (standar aplikasi kamera).
+                         CUMA layar — canvas capture baca stream mentah, jadi foto tersimpan
+                         TIDAK ikut kebalik. Jangan pernah flip canvas-nya. --}}
                     <video id="cam" autoplay playsinline muted
-                           class="w-full rounded-xl bg-slate-900 aspect-video object-cover"></video>
-                    <img id="preview" class="hidden w-full rounded-xl aspect-video object-cover" alt="foto absen">
+                           class="w-full rounded-xl bg-slate-900 aspect-video object-cover -scale-x-100"></video>
+                    <img id="preview" class="hidden w-full rounded-xl aspect-video object-cover -scale-x-100" alt="foto absen">
                     <canvas id="canvas" class="hidden"></canvas>
 
                     <p id="cam-status" class="text-xs text-slate-500"></p>

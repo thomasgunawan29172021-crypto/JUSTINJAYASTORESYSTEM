@@ -34,4 +34,8 @@
             </button>
         </form>
     </div>
+
+    <p class="text-center text-[11px] text-slate-400 mt-4">
+        Klaim retur / garansi barang? <a href="{{ route('warranty.track.form') }}" class="text-emerald-600 hover:underline">Lacak retur di sini</a>
+    </p>
 @endsection

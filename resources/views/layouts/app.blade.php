@@ -17,6 +17,8 @@
         $isFinance = $u->role->canAccessFinance();
         $canService = $u->role->canAccessService();
         $isPic     = $u->brands()->exists();
+        $canRetur   = $u->role->canProcessWarrantyClaim();
+        $canInputRetur = $u->role->canCreateWarrantyClaim() || $canRetur;
 
         // [label, route name, boleh diakses?]
         $modules = [
@@ -24,6 +26,11 @@
                 ['Dashboard Servis', 'service.dashboard', $canService],
                 ['Tiket',            'service.tickets.index', $canService],
                 ['KPI',              'service.kpi', $canService],
+            ]],
+            'retur' => ['label' => 'Returan', 'tiles' => [
+                ['Klaim Retur',  'warranty.claims.index', $canInputRetur],
+                ['Klaim Baru',   'warranty.claims.create', $canInputRetur],
+                ['Vendor Retur', 'warranty.vendors.index', $canRetur],
             ]],
             'marketplace' => ['label' => 'Marketplace', 'tiles' => [
                 ['Tugas Saya',   'marketplace.tasks.index', $isCeo || $isPic],
@@ -74,6 +81,7 @@
             'dashboard'   => '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
             'servis'      => '<path d="M14.5 6.5a3.5 3.5 0 0 0-4.7 4.7L4 17v3h3l5.8-5.8a3.5 3.5 0 0 0 4.7-4.7l-2.2 2.2-2-2 2.2-2.2z"/>',
             'marketplace' => '<path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/>',
+            'retur'       => '<path d="M3 9l4-5h10l4 5"/><path d="M3 9h18v11H3z"/><path d="M12 13v4M10 15l2 2 2-2"/>',
             'sosmed'      => '<rect x="2.5" y="5" width="15" height="14" rx="3"/><path d="M17.5 10.5 21.5 8v8l-4-2.5"/><circle cx="10" cy="12" r="2.5"/>',
             'kepegawaian' => '<circle cx="9" cy="8" r="3"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M16 5.5a3 3 0 0 1 0 6"/><path d="M20.5 20a5 5 0 0 0-3.5-4.8"/>',
             'keuangan'    => '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="16.5" cy="14" r="1.2"/>',
@@ -92,6 +100,9 @@
             'marketplace.brands.index'      => '🏷️',
             'marketplace.stores.index'      => '🏬',
             'marketplace.discounts.index'   => '💸',
+            'warranty.claims.index'         => '🔁',
+            'warranty.claims.create'        => '📥',
+            'warranty.vendors.index'        => '🚚',
             'attendance.index'              => '🕒',
             'leaves.index'                  => '🌿',
             'attendance.myrecap'            => '🧾',
@@ -134,6 +145,8 @@
             'payroll.show'                    => 'Slip Gaji',
             'sosmed.videos.create'            => 'Catat Video',
             'sosmed.videos.edit'              => 'Edit Video',
+            'warranty.claims.show'            => 'Detail Klaim',
+            'warranty.claims.receipt'         => 'Nota Retur',
         ];
 
         $curRoute = request()->route()?->getName() ?? 'dashboard';
@@ -153,6 +166,7 @@
             str_starts_with($curRoute, 'pricing.')                            => 'pengaturan',
             $curRoute === 'dashboard'                                         => 'dashboard',
             str_starts_with($curRoute, 'calendar.')                            => 'kalender',
+            str_starts_with($curRoute, 'warranty.')                           => 'retur',
             default                                                           => null,
         };
     @endphp
@@ -570,6 +584,141 @@
             });
         });
     });
+})();
+</script>
+
+<script>
+/* ============ Draft form (anti-ilang pas pindah tab) ============
+   Pasang: data-draft="nama-unik" di <form>. HANYA buat form CREATE —
+   form edit jangan, restore draft basi di atas data server itu bahaya.
+   Batas: file/foto GAK bisa disimpen (dilarang browser) — harus pilih ulang.
+
+   URUTAN PENTING: blok ini WAJIB di atas searchable. Draft mulihin value
+   <select> dulu, baru searchable baca value itu buat nampilin teksnya. */
+(function () {
+    document.querySelectorAll('form[data-draft]').forEach(function (f) {
+        var key = 'jjdraft:' + f.getAttribute('data-draft');
+        var saved = {};
+        try { saved = JSON.parse(sessionStorage.getItem(key) || '{}'); } catch (e) {}
+
+        function fields() {
+            return Array.prototype.filter.call(f.elements, function (el) {
+                return el.name && el.type !== 'file' && el.type !== 'password' && el.name !== '_token';
+            });
+        }
+
+        /* Restore — old() dari server MENANG: field yang udah keisi gak ditimpa,
+           biar abis gagal validasi gak ketimpa draft yang lebih lama. */
+        fields().forEach(function (el) {
+            if (!(el.name in saved)) return;
+            if (el.type === 'checkbox' || el.type === 'radio') {
+                if (!f.querySelector('[name="' + el.name.replace(/"/g, '') + '"]:checked')) {
+                    el.checked = Array.isArray(saved[el.name])
+                        ? saved[el.name].indexOf(el.value) !== -1
+                        : saved[el.name] === el.value;
+                }
+            } else if (el.value === '') {
+                el.value = saved[el.name];
+            }
+        });
+
+        function snapshot() {
+            var out = {};
+            fields().forEach(function (el) {
+                if (el.type === 'checkbox') {
+                    out[el.name] = out[el.name] || [];
+                    if (el.checked) out[el.name].push(el.value);
+                } else if (el.type === 'radio') {
+                    if (el.checked) out[el.name] = el.value;
+                } else if (el.value !== '') {
+                    out[el.name] = el.value;
+                }
+            });
+            try { sessionStorage.setItem(key, JSON.stringify(out)); } catch (e) {}
+        }
+
+        f.addEventListener('input',  snapshot);
+        f.addEventListener('change', snapshot);
+        f.addEventListener('submit', function () { sessionStorage.removeItem(key); });
+    });
+})();
+</script>
+
+<script>
+/* ============ Searchable dropdown (semua select produk) ============
+   Pasang: kasih atribut data-searchable ke <select> mana pun.
+   Select aslinya TETAP yang ke-submit — komponen ini cuma kulit pencarian,
+   jadi validasi server & controller gak perlu diubah sama sekali. */
+(function () {
+    window.jjSearchable = function (sel) {
+        if (!sel || sel.dataset.jjDone) return;
+        sel.dataset.jjDone = '1';
+
+        var wrap = document.createElement('div');
+        wrap.className = 'relative';
+        /* Bawa kelas layout dari select ke pembungkus. Tanpa ini, select yang
+           tadinya flex-1 (mis. baris komponen bundle) kolaps jadi sempit begitu
+           dibungkus div biasa — div-nya gak ikut melar di flex row. */
+        ['flex-1', 'min-w-0'].forEach(function (c) {
+            if (sel.classList.contains(c)) wrap.classList.add(c);
+        });
+
+        sel.parentNode.insertBefore(wrap, sel);
+        wrap.appendChild(sel);
+        sel.classList.add('hidden');
+
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.autocomplete = 'off';
+        input.placeholder = 'Ketik untuk cari…';
+        input.className = sel.className.replace('hidden', '') +
+            ' w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white';
+
+        var panel = document.createElement('div');
+        panel.className = 'hidden absolute z-30 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg';
+
+        wrap.appendChild(input);
+        wrap.appendChild(panel);
+
+        function options() {
+            return Array.prototype.filter.call(sel.options, function (o) { return o.value !== ''; });
+        }
+        function syncFromSelect() {
+            var o = sel.options[sel.selectedIndex];
+            input.value = (o && o.value !== '') ? o.text : '';
+        }
+        function render(q) {
+            q = (q || '').toLowerCase();
+            var hits = options().filter(function (o) { return o.text.toLowerCase().indexOf(q) !== -1; });
+            panel.innerHTML = hits.length
+                ? hits.slice(0, 50).map(function (o) {
+                      return '<button type="button" data-v="' + o.value + '" class="block w-full text-left px-3 py-2 text-sm hover:bg-emerald-50">'
+                          + o.text.replace(/</g, '&lt;') + '</button>';
+                  }).join('')
+                : '<p class="px-3 py-2 text-sm text-slate-400">Tidak ketemu.</p>';
+            panel.classList.remove('hidden');
+        }
+
+        input.addEventListener('focus', function () { input.select(); render(input.value); });
+        input.addEventListener('input', function () { render(input.value); });
+        input.addEventListener('blur',  function () {
+            setTimeout(function () { panel.classList.add('hidden'); syncFromSelect(); }, 150);
+        });
+        panel.addEventListener('mousedown', function (e) {
+            var b = e.target.closest('[data-v]');
+            if (!b) return;
+            sel.value = b.getAttribute('data-v');
+            syncFromSelect();
+            panel.classList.add('hidden');
+            /* Penting: panel harga rekomendasi & bundle dengerin event ini */
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+            sel.dispatchEvent(new Event('input',  { bubbles: true }));
+        });
+
+        syncFromSelect();
+    };
+
+    document.querySelectorAll('select[data-searchable]').forEach(window.jjSearchable);
 })();
 </script>
 </body>

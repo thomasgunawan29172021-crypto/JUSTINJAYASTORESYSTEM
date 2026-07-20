@@ -23,6 +23,9 @@ use App\Http\Controllers\Service\KpiController;
 use App\Http\Controllers\Service\TicketController;
 use App\Http\Controllers\Service\TrackingController;
 use App\Http\Controllers\UserManagementController;
+use App\Http\Controllers\Warranty\WarrantyClaimController;
+use App\Http\Controllers\Warranty\WarrantyTrackingController;
+use App\Http\Controllers\Warranty\WarrantyVendorController;
 use App\Http\Controllers\WorkScheduleController;
 use Illuminate\Support\Facades\Route;
 
@@ -49,6 +52,17 @@ Route::prefix('track')->name('track.')->group(function () {
     Route::get('/',         [TrackingController::class, 'form'])->name('form');
     Route::post('/',        [TrackingController::class, 'lookup'])->name('lookup');
     Route::get('/{ticket}', [TrackingController::class, 'show'])->name('show');
+});
+
+/*
+|--------------------------------------------------------------------------
+| PUBLIK — pelanggan lacak klaim retur TANPA login (kembaran track servis)
+|--------------------------------------------------------------------------
+*/
+Route::prefix('track-retur')->name('warranty.track.')->group(function () {
+    Route::get('/',        [WarrantyTrackingController::class, 'form'])->name('form');
+    Route::post('/',       [WarrantyTrackingController::class, 'lookup'])->name('lookup');
+    Route::get('/{claim}', [WarrantyTrackingController::class, 'show'])->name('show');
 });
 
 /*
@@ -104,6 +118,28 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('/marketplace/tasks/{task}/undo',     [TaskController::class, 'undo'])->name('marketplace.tasks.undo');
     Route::post('/marketplace/tasks/{task}/pin',      [TaskController::class, 'togglePin'])->name('marketplace.tasks.pin');
     Route::post('/marketplace/tasks/{task}/revise',   [TaskController::class, 'requestRevision'])->name('marketplace.tasks.revise');
+
+    // ---------------- KLAIM GARANSI / RETUR (frontliner input; tim retur proses) ----------------
+    Route::prefix('retur')->name('warranty.')->group(function () {
+        Route::get('/claims',        [WarrantyClaimController::class, 'index'])->name('claims.index');
+        // /create HARUS di atas /{claim} — pola yang sama kayak tiket servis.
+        Route::get('/claims/create', [WarrantyClaimController::class, 'create'])->name('claims.create');
+        Route::post('/claims',       [WarrantyClaimController::class, 'store'])->name('claims.store');
+        Route::get('/claims/{claim}',         [WarrantyClaimController::class, 'show'])->name('claims.show');
+        Route::get('/claims/{claim}/receipt', [WarrantyClaimController::class, 'receipt'])->name('claims.receipt');
+        // Foto di-serve lewat controller (bukan Storage::url) supaya tetap di balik login
+        // dan gak bergantung disk mana yang dipakai.
+        Route::get('/claims/{claim}/photos/{photo}', [WarrantyClaimController::class, 'photo'])->name('claims.photo');
+        Route::get('/claims/{claim}/photos/{photo}', [WarrantyClaimController::class, 'photo'])->name('claims.photo');
+        Route::post('/claims/{claim}/advance',  [WarrantyClaimController::class, 'advance'])->name('claims.advance');
+        Route::post('/claims/{claim}/cancel',   [WarrantyClaimController::class, 'cancel'])->name('claims.cancel');
+        Route::post('/claims/{claim}/followup', [WarrantyClaimController::class, 'followUp'])->name('claims.followup');
+
+        Route::get('/vendors',             [WarrantyVendorController::class, 'index'])->name('vendors.index');
+        Route::post('/vendors',            [WarrantyVendorController::class, 'store'])->name('vendors.store');
+        Route::put('/vendors/{vendor}',    [WarrantyVendorController::class, 'update'])->name('vendors.update');
+        Route::delete('/vendors/{vendor}', [WarrantyVendorController::class, 'destroy'])->name('vendors.destroy');
+    });
 
     // ---------------- MODUL SERVICE ----------------
     Route::middleware('service')->prefix('service')->name('service.')->group(function () {

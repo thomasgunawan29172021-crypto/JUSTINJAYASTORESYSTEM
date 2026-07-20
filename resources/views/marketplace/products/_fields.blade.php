@@ -34,7 +34,7 @@
 
 <div>
     <label class="block text-xs font-semibold text-slate-600 mb-1">Brand *</label>
-    <select name="brand_id" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
+    <select name="brand_id" required data-searchable class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
         <option value="">— pilih —</option>
         @foreach($brands as $b)
             <option value="{{ $b->id }}" @selected(old('brand_id', $p?->brand_id) == $b->id)>{{ $b->name }}</option>
@@ -190,7 +190,11 @@
         var wrap = document.createElement('div');
         wrap.className = 'flex gap-2 items-center';
         wrap.innerHTML =
-            '<select class="bundle-id flex-1 min-w-0 rounded-lg border border-slate-300 px-2 py-1.5 text-sm bg-white">' +
+            /* data-searchable WAJIB di markup, bukan cuma lewat panggilan di bawah:
+               addRow() jalan waktu skrip ini di-parse — SEBELUM window.jjSearchable
+               didefinisiin di layout. Jadi baris awal dilewati kalau cuma ngandelin
+               panggilan itu; sapuan querySelectorAll di layout yang nangkep mereka. */
+            '<select data-searchable class="bundle-id flex-1 min-w-0 rounded-lg border border-slate-300 px-2 py-1.5 text-sm bg-white">' +
                 '<option value="">— pilih produk —</option>' +
                 OPTS.map(function (o) {
                     return '<option value="' + o.id + '"' + (String(o.id) === String(id) ? ' selected' : '') + '>' +
@@ -201,6 +205,8 @@
             '<button type="button" class="bundle-del w-8 h-8 rounded-lg bg-slate-100 text-slate-400 hover:text-rose-500 shrink-0">×</button>';
         rows.appendChild(wrap);
         renumber();
+        /* Buat baris yang ditambah SESUDAH halaman jadi — sapuan di layout udah lewat. */
+        if (window.jjSearchable) window.jjSearchable(wrap.querySelector('.bundle-id'));
     }
 
     /* Nama input di-generate ulang tiap kali baris berubah — kalau nomornya bolong

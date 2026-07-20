@@ -65,4 +65,18 @@ enum UserRole: string
             self::Ceo, self::KepalaToko, self::Frontliner, self::Teknisi, self::AdminChat,
         ], true);
     }
+
+    /** Modul klaim garansi/retur: input klaim = frontliner dkk; proses = tim retur. */
+    public function canCreateWarrantyClaim(): bool
+    {
+        // Frontliner nerima barang dari pelanggan (keputusan Thomas #10),
+        // role servis lain + retur juga boleh input.
+        return $this->canAccessService() || $this === self::Retur;
+    }
+
+    public function canProcessWarrantyClaim(): bool
+    {
+        // Majuin tahap, follow up, isi hasil vendor — cuma tim retur + CEO.
+        return in_array($this, [self::Ceo, self::Retur], true);
+    }
 }
