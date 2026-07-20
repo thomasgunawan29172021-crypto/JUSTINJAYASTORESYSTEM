@@ -707,7 +707,9 @@ class ProductController extends Controller
         ]);
 
         $data = $request->validate([
-            'name'          => ['required', 'string', 'max:200',
+            // max:500 ikut lebar kolom DB — nama produk marketplace (docking station
+            // yang nyebut semua port) beneran tembus 200 char.
+            'name'          => ['required', 'string', 'max:500',
                 Rule::unique('products', 'name')->ignore($product?->id)],
             'barcode'       => ['nullable', 'string', 'max:100'],
             'sku'           => ['nullable', 'string', 'max:100'],

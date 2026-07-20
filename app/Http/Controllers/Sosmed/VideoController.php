@@ -131,11 +131,22 @@ class VideoController extends Controller
         $platforms = Platform::whereIn('id', $data['platform_ids'])->get()->keyBy('id');
         $urls = [];
         foreach ($data['platform_ids'] as $pid) {
-            $url = trim($data['urls'][$pid] ?? '');
+            // Dibersihin DULUAN, sebelum cek duplikat: kalau dibersihin belakangan,
+            // video yang sama di-share dua kali (ekor tracking beda) lolos cek
+            // duplikat di sini, terus baru nabrak unique index di DB → 500.
+            $url = $this->cleanShareUrl(trim($data['urls'][$pid] ?? ''));
             $p   = $platforms[$pid];
 
             if ($url === '' || ! filter_var($url, FILTER_VALIDATE_URL)) {
                 throw ValidationException::withMessages(['urls' => "Link untuk {$p->name} wajib diisi dan valid."]);
+            }
+            // Jaring terakhir: platform selain TikTok bisa aja punya link panjang yang
+            // gak kena pembersih. Lebih baik pesan jelas daripada 500 "Data too long".
+            if (mb_strlen($url) > 700) {
+                throw ValidationException::withMessages([
+                    'urls' => "Link {$p->name} kepanjangan (".mb_strlen($url)." karakter, maks 700). "
+                        .'Salin link dari browser, bukan dari tombol share aplikasi.',
+                ]);
             }
             if (! $p->acceptsUrl($url)) {
                 throw ValidationException::withMessages(['urls' => "Link tidak sesuai domain platform {$p->name}."]);
@@ -151,6 +162,25 @@ class VideoController extends Controller
         $data['urls'] = $urls;
 
         return $data;
+    }
+
+    /**
+     * Buang query-string sampah dari link share TikTok — link tetap valid tanpa itu.
+     *
+     * Tombol "share" di APLIKASI TikTok nempelin ekor tracking (_r, _t, u_code,
+     * share_link_id, sec_user_id, dst) yang bisa 900+ karakter dan bikin insert
+     * gagal. Path /@user/video/{id} sendiri udah cukup buat buka videonya.
+     *
+     * SENGAJA cuma TikTok: platform lain butuh query-string-nya. Buang "?" di
+     * YouTube = buang ?v={id} dan link-nya mati total.
+     */
+    protected function cleanShareUrl(string $url): string
+    {
+        if (str_contains($url, 'tiktok.com') && preg_match('#^https?://[^?]+#', $url, $m)) {
+            return $m[0];
+        }
+
+        return $url;
     }
 
     /** Susun pivot: PIC selalu 1 (is_pic=true); anggota hanya kalau colab. */
