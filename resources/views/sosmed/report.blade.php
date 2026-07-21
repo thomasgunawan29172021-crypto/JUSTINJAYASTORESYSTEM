@@ -38,7 +38,7 @@
             🎯 Target berlaku: <b>{{ $currentTarget !== null ? $currentTarget.' video/hari' : 'belum diatur' }}</b>
             <span class="block text-[11px] text-slate-400 mt-0.5">Dinilai hanya di hari pegawai absen masuk. Riwayat target tersimpan — laporan lama tidak berubah.</span>
         </p>
-        @if(auth()->user()->role->isCeo())
+        @if(auth()->user()->isCeo())
             <form method="POST" action="{{ route('sosmed.targets.store') }}" class="flex items-end gap-2">
                 @csrf
                 <div>

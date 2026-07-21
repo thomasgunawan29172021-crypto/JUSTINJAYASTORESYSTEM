@@ -129,7 +129,7 @@ class CalendarController extends Controller
             'month'  => $month,
             'weeks'  => array_values($weeks),
             'events' => $events,
-            'isCeo'  => $request->user()->role->isCeo(),
+            'isCeo'  => $request->user()->isCeo(),
         ]);
     }
 

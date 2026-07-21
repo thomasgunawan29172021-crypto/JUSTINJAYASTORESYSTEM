@@ -17,7 +17,7 @@ class DashboardController extends Controller
     public function index(Request $request)
     {
         $user  = $request->user();
-        $isCeo = $user->role->isCeo();
+        $isCeo = $user->isCeo();
 
         // Staf biasa: sapaan + reminder absen. Data komando hanya untuk CEO.
         if (! $isCeo) {

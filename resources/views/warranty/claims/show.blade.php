@@ -3,7 +3,7 @@
 @section('title', $claim->claim_number)
 
 @php
-    $canProcess = auth()->user()->role->canProcessWarrantyClaim();
+    $canProcess = auth()->user()->canProcessWarrantyClaim();
     $next = $claim->status->next();
     $timeline = \App\Enums\WarrantyClaimStatus::timeline();
     $curIdx = array_search($claim->status, $timeline, true);

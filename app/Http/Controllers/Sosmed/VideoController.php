@@ -14,6 +14,11 @@ class VideoController extends Controller
 {
     public function index(Request $request)
     {
+        // Whitelist sort — nilai dari URL gak dipercaya mentah-mentah.
+        $sort = in_array($request->input('sort'), ['terbaru', 'terlama', 'views_desc', 'views_asc'], true)
+            ? $request->input('sort')
+            : 'terbaru';
+
         $videos = SocialVideo::with(['creators', 'postings.platform', 'postings.latestSnapshot'])
             ->when($request->filled('q'), function ($q) use ($request) {
                 $term = '%'.trim($request->string('q')).'%';
@@ -23,7 +28,29 @@ class VideoController extends Controller
                 fn ($p) => $p->where('platform_id', (int) $request->input('platform_id'))))
             ->when($request->filled('user_id'), fn ($q) => $q->whereHas('creators',
                 fn ($c) => $c->where('users.id', (int) $request->input('user_id'))))
-            ->orderByDesc('published_at')
+            ->when(in_array($sort, ['views_desc', 'views_asc'], true), function ($q) use ($sort) {
+                // Total views = jumlah snapshot TERAKHIR tiap posting (bukan sum semua
+                // snapshot — itu bakal ngitung riwayat berkali-kali). Harus subquery
+                // SQL karena paginate: sort di collection cuma ngurutin 1 halaman.
+                $q->select('social_videos.*')
+                  ->selectSub(
+                      'select coalesce(sum(vms.views), 0)
+                       from social_video_platform svp
+                       join video_metric_snapshots vms
+                         on vms.social_video_platform_id = svp.id
+                        and vms.recorded_at = (
+                            select max(x.recorded_at)
+                            from video_metric_snapshots x
+                            where x.social_video_platform_id = svp.id
+                        )
+                       where svp.social_video_id = social_videos.id',
+                      'total_views'
+                  )
+                  ->orderBy('total_views', $sort === 'views_desc' ? 'desc' : 'asc')
+                  ->orderByDesc('published_at'); // seri views (termasuk 0 vs 0) → yang baru duluan
+            })
+            ->when($sort === 'terbaru', fn ($q) => $q->orderByDesc('published_at'))
+            ->when($sort === 'terlama', fn ($q) => $q->orderBy('published_at'))
             ->paginate(30)
             ->withQueryString();
 
@@ -31,6 +58,7 @@ class VideoController extends Controller
             'videos'    => $videos,
             'staff'     => User::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'platforms' => Platform::orderBy('name')->get(),
+            'sort'      => $sort,
         ]);
     }
 

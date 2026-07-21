@@ -5,7 +5,7 @@
 @section('content')
     <div class="flex flex-wrap items-center justify-between gap-2 mb-5">
         <h1 class="text-xl font-bold">Approval Izin & Cuti</h1>
-        @if(auth()->user()->role->isCeo())
+        @if(auth()->user()->isCeo())
             <a href="{{ route('leaves.trash') }}"
                class="rounded-lg bg-white border border-slate-300 px-4 py-2 text-sm font-semibold hover:border-rose-300 text-slate-600">
                 🗑 Sampah @if($trashCount)<span class="text-rose-500">({{ $trashCount }})</span>@endif
@@ -73,7 +73,7 @@
                             <input type="text" name="decision_note" placeholder="Catatan (opsional)"
                                    class="flex-1 min-w-40 rounded-lg border border-slate-300 px-3 py-2 text-sm">
 
-                            @if($r->type === \App\Enums\LeaveType::Izin && auth()->user()->role->isCeo())
+                            @if($r->type === \App\Enums\LeaveType::Izin && auth()->user()->isCeo())
                                 <label class="flex items-center gap-1.5 text-xs text-slate-600 whitespace-nowrap">
                                     <input type="checkbox" name="is_paid" value="1" class="rounded">
                                     Tidak dipotong <span class="text-slate-400">(khusus CEO)</span>
@@ -88,12 +88,12 @@
                                     class="rounded-lg bg-rose-500 hover:bg-rose-400 text-white text-sm font-semibold px-4 py-2">
                                 ✕ Tolak
                             </button>
-                            @if(auth()->user()->role->isCeo())
+                            @if(auth()->user()->isCeo())
                                 <a href="#" onclick="event.preventDefault(); if(confirm('Hapus pengajuan ini? (buat pengajuan iseng/salah input)')) document.getElementById('del-pending-{{ $r->id }}').submit();"
                                    class="text-xs font-semibold text-slate-400 hover:text-rose-500">🗑 Hapus</a>
                             @endif
                         </form>
-                        @if(auth()->user()->role->isCeo())
+                        @if(auth()->user()->isCeo())
                             <form id="del-pending-{{ $r->id }}" method="POST" action="{{ route('leaves.manage.destroy', $r) }}" class="hidden">
                                 @csrf @method('DELETE')
                             </form>
@@ -115,7 +115,7 @@
                     </span>
                     <span class="text-xs text-slate-400">
                         <span class="px-2 py-0.5 rounded-full text-[11px] font-medium {{ $r->status->color() }}">{{ $r->status->label() }}</span>
-                        @if(auth()->user()->role->isCeo())
+                        @if(auth()->user()->isCeo())
                             <form method="POST" action="{{ route('leaves.manage.destroy', $r) }}" class="inline"
                                   onsubmit="return confirm('Hapus pengajuan {{ $r->user->name }}?{{ $r->status === \App\Enums\LeaveStatus::Approved ? ' Cuti ini SUDAH DISETUJUI — hari-harinya akan kembali dihitung ALPHA (kena potong gaji).' : '' }}')">
                                 @csrf @method('DELETE')

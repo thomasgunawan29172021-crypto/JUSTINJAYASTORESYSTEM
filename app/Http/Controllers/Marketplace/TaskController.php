@@ -16,7 +16,7 @@ class TaskController extends Controller
     public function index(Request $request)
     {
         $user  = $request->user();
-        $isCeo = $user->role->isCeo();
+        $isCeo = $user->isCeo();
 
         // Filter periode: pending pakai created_at, selesai pakai completed_at
         $range = $request->string('range')->toString();
@@ -114,7 +114,7 @@ class TaskController extends Controller
             ->where('store_id', $task->store_id)
             ->where('user_id', $user->id)
             ->exists();
-        abort_unless($isPic || $user->role->isCeo(), 403, 'Anda bukan PIC brand ini di toko tersebut.');
+        abort_unless($isPic || $user->isCeo(), 403, 'Anda bukan PIC brand ini di toko tersebut.');
 
         if ($task->status !== MarketplaceTask::STATUS_PENDING) {
             return back()->withErrors(['task' => 'Tugas ini sudah diselesaikan.']);
@@ -161,7 +161,7 @@ class TaskController extends Controller
         ]);
 
         $user  = $request->user();
-        $isCeo = $user->role->isCeo();
+        $isCeo = $user->isCeo();
 
         $tasks = MarketplaceTask::with('product')
             ->whereIn('id', $data['task_ids'])
@@ -224,7 +224,7 @@ class TaskController extends Controller
     {
         $user = $request->user();
 
-        abort_unless($task->completed_by === $user->id || $user->role->isCeo(), 403,
+        abort_unless($task->completed_by === $user->id || $user->isCeo(), 403,
             'Hanya yang menyelesaikan tugas ini (atau CEO) yang bisa membatalkan.');
 
         if ($task->status !== MarketplaceTask::STATUS_DONE) {
@@ -258,7 +258,7 @@ class TaskController extends Controller
             ->where('store_id', $task->store_id)
             ->where('user_id', $user->id)
             ->exists();
-        abort_unless($isPic || $user->role->isCeo(), 403);
+        abort_unless($isPic || $user->isCeo(), 403);
 
         $task->update(['pinned_at' => $task->pinned_at ? null : now()]);
 
@@ -268,7 +268,7 @@ class TaskController extends Controller
     public function requestRevision(Request $request, MarketplaceTask $task)
     {
         // Keputusan Thomas: hanya CEO yang menentukan revisi
-        abort_unless($request->user()->role->isCeo(), 403, 'Hanya CEO yang bisa meminta revisi.');
+        abort_unless($request->user()->isCeo(), 403, 'Hanya CEO yang bisa meminta revisi.');
 
         $data = $request->validate([
             'note' => ['required', 'string', 'max:300'],

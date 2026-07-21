@@ -12,13 +12,14 @@
 
     @php
         $u = auth()->user();
-        $isCeo     = $u->role->isCeo();
-        $isManager = $u->role->isManager();
-        $isFinance = $u->role->canAccessFinance();
-        $canService = $u->role->canAccessService();
+        // Akses = union role utama + extra_roles → SEMUA lewat method di User, bukan $u->role->.
+        $isCeo     = $u->isCeo();
+        $isManager = $u->isManager();
+        $isFinance = $u->canAccessFinance();
+        $canService = $u->canAccessService();
         $isPic     = $u->brands()->exists();
-        $canRetur   = $u->role->canProcessWarrantyClaim();
-        $canInputRetur = $u->role->canCreateWarrantyClaim() || $canRetur;
+        $canRetur   = $u->canProcessWarrantyClaim();
+        $canInputRetur = $u->canCreateWarrantyClaim() || $canRetur;
 
         // [label, route name, boleh diakses?]
         $modules = [
@@ -41,9 +42,9 @@
                 ['Diskon',       'marketplace.discounts.index', $isCeo],
             ]],
             'sosmed' => ['label' => 'Sosmed', 'tiles' => [
-                ['Video Sosmed', 'sosmed.videos.index', $isCeo || $u->role === \App\Enums\UserRole::Sosmed],
-                ['Update Metrik', 'sosmed.metrics.index', $isCeo || $u->role === \App\Enums\UserRole::Sosmed],
-                ['Laporan Sosmed', 'sosmed.report', $isCeo || $u->role === \App\Enums\UserRole::Sosmed],
+                ['Video Sosmed', 'sosmed.videos.index', $u->canManageSosmed()],
+                ['Update Metrik', 'sosmed.metrics.index', $u->canManageSosmed()],
+                ['Laporan Sosmed', 'sosmed.report', $u->canManageSosmed()],
                 ['Platform Sosmed', 'sosmed.platforms.index', $isCeo],   // master data — CEO only
                 ['Leaderboard', 'sosmed.leaderboard', true],
             ]],

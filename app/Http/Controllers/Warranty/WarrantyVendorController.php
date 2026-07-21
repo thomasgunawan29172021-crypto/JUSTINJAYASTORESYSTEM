@@ -12,7 +12,7 @@ class WarrantyVendorController extends Controller
 {
     public function index(Request $request)
     {
-        abort_unless($request->user()->role->canProcessWarrantyClaim(), 403);
+        abort_unless($request->user()->canProcessWarrantyClaim(), 403);
 
         return view('warranty.vendors.index', [
             'vendors' => WarrantyVendor::withCount('claims')->orderBy('name')->get(),
@@ -21,7 +21,7 @@ class WarrantyVendorController extends Controller
 
     public function store(Request $request)
     {
-        abort_unless($request->user()->role->canProcessWarrantyClaim(), 403);
+        abort_unless($request->user()->canProcessWarrantyClaim(), 403);
 
         $data = $request->validate([
             'name'  => ['required', 'string', 'max:100', 'unique:warranty_vendors,name'],
@@ -36,7 +36,7 @@ class WarrantyVendorController extends Controller
 
     public function update(Request $request, WarrantyVendor $vendor)
     {
-        abort_unless($request->user()->role->canProcessWarrantyClaim(), 403);
+        abort_unless($request->user()->canProcessWarrantyClaim(), 403);
 
         $data = $request->validate([
             'name'  => ['required', 'string', 'max:100', Rule::unique('warranty_vendors', 'name')->ignore($vendor->id)],
@@ -51,7 +51,7 @@ class WarrantyVendorController extends Controller
 
     public function destroy(Request $request, WarrantyVendor $vendor)
     {
-        abort_unless($request->user()->role->canProcessWarrantyClaim(), 403);
+        abort_unless($request->user()->canProcessWarrantyClaim(), 403);
 
         // Soft delete — klaim lama tetap bisa nampilin nama vendor (relasi withTrashed).
         // Vendor dengan klaim AKTIF jangan dihapus: tim bakal kehilangan tujuan kirim.

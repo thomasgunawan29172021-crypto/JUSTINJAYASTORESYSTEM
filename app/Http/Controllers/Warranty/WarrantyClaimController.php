@@ -16,8 +16,8 @@ class WarrantyClaimController extends Controller
 {
     public function index(Request $request)
     {
-        abort_unless($request->user()->role->canCreateWarrantyClaim()
-            || $request->user()->role->canProcessWarrantyClaim(), 403);
+        abort_unless($request->user()->canCreateWarrantyClaim()
+            || $request->user()->canProcessWarrantyClaim(), 403);
 
         $claims = WarrantyClaim::query()
             ->with(['branch', 'product', 'vendor'])
@@ -45,7 +45,7 @@ class WarrantyClaimController extends Controller
 
     public function create(Request $request)
     {
-        abort_unless($request->user()->role->canCreateWarrantyClaim(), 403);
+        abort_unless($request->user()->canCreateWarrantyClaim(), 403);
 
         return view('warranty.claims.create', [
             'branches' => Branch::all(),
@@ -56,7 +56,7 @@ class WarrantyClaimController extends Controller
 
     public function store(Request $request)
     {
-        abort_unless($request->user()->role->canCreateWarrantyClaim(), 403);
+        abort_unless($request->user()->canCreateWarrantyClaim(), 403);
 
         $data = $request->validate([
             'branch_id'      => ['required', 'exists:branches,id'],
@@ -93,8 +93,8 @@ class WarrantyClaimController extends Controller
 
     public function show(Request $request, WarrantyClaim $claim)
     {
-        abort_unless($request->user()->role->canCreateWarrantyClaim()
-            || $request->user()->role->canProcessWarrantyClaim(), 403);
+        abort_unless($request->user()->canCreateWarrantyClaim()
+            || $request->user()->canProcessWarrantyClaim(), 403);
 
         $claim->load(['branch', 'product', 'vendor', 'creator', 'histories.user', 'photos']);
 
@@ -107,7 +107,7 @@ class WarrantyClaimController extends Controller
     /** Maju SATU tahap — mesin di model yang jaga urutan, controller cuma nyalurin. */
     public function advance(Request $request, WarrantyClaim $claim)
     {
-        abort_unless($request->user()->role->canProcessWarrantyClaim(), 403);
+        abort_unless($request->user()->canProcessWarrantyClaim(), 403);
 
         $data = $request->validate([
             'note'            => ['nullable', 'string', 'max:500'],
@@ -142,7 +142,7 @@ class WarrantyClaimController extends Controller
 
     public function cancel(Request $request, WarrantyClaim $claim)
     {
-        abort_unless($request->user()->role->canProcessWarrantyClaim(), 403);
+        abort_unless($request->user()->canProcessWarrantyClaim(), 403);
 
         $data = $request->validate([
             'cancel_reason' => ['required', 'string', 'max:500'],
@@ -161,7 +161,7 @@ class WarrantyClaimController extends Controller
 
     public function followUp(Request $request, WarrantyClaim $claim)
     {
-        abort_unless($request->user()->role->canProcessWarrantyClaim(), 403);
+        abort_unless($request->user()->canProcessWarrantyClaim(), 403);
 
         $data = $request->validate(['note' => ['nullable', 'string', 'max:500']]);
 
@@ -177,8 +177,8 @@ class WarrantyClaimController extends Controller
     /** Nota tanda terima (keputusan #13) — berisi QR ke halaman lacak, kembaran servis. */
     public function receipt(Request $request, WarrantyClaim $claim)
     {
-        abort_unless($request->user()->role->canCreateWarrantyClaim()
-            || $request->user()->role->canProcessWarrantyClaim(), 403);
+        abort_unless($request->user()->canCreateWarrantyClaim()
+            || $request->user()->canProcessWarrantyClaim(), 403);
 
         $claim->load(['branch', 'product', 'creator', 'photos']);
 
@@ -188,8 +188,8 @@ class WarrantyClaimController extends Controller
     /** Serve foto lewat controller — aman apa pun FILESYSTEM_DISK-nya, dan tetap di balik login. */
     public function photo(Request $request, WarrantyClaim $claim, WarrantyClaimPhoto $photo)
     {
-        abort_unless($request->user()->role->canCreateWarrantyClaim()
-            || $request->user()->role->canProcessWarrantyClaim(), 403);
+        abort_unless($request->user()->canCreateWarrantyClaim()
+            || $request->user()->canProcessWarrantyClaim(), 403);
         // Cast int: foreign key gak otomatis di-cast Eloquent, dan driver DB bisa
         // balikin string. "5" === 5 itu false → foto sah malah 404. Fail-safe, tapi rusak.
         abort_unless((int) $photo->claim_id === (int) $claim->id, 404);

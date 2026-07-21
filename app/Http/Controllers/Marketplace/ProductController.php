@@ -133,7 +133,7 @@ class ProductController extends Controller
      */
     public function updatePostings(Request $request, Product $product, PostingTaskService $tasks)
     {
-        abort_unless($request->user()->role->isCeo(), 403, 'Hanya CEO yang bisa mengubah status posting.');
+        abort_unless($request->user()->isCeo(), 403, 'Hanya CEO yang bisa mengubah status posting.');
 
         $data = $request->validate([
             'posted_stores'   => ['nullable', 'array'],
@@ -260,7 +260,7 @@ class ProductController extends Controller
         // Matriks posting MENETAPKAN status posting langsung — tanpa tugas, tanpa kredit PIC.
         // Route ini sudah CEO-only (middleware 'ceo'); guard dipertahankan agar tetap aman
         // seandainya route dipindah keluar dari grup CEO.
-        $canSetPosting = $request->user()->role->isCeo();
+        $canSetPosting = $request->user()->isCeo();
 
         $created = 0; $updated = 0; $skipped = 0; $newBrands = [];
         $posted = 0; $unposted = 0; $tasksCreated = 0;
@@ -522,7 +522,7 @@ class ProductController extends Controller
      */
     public function priceRecommendation(Request $request, \App\Services\PricingCalculatorService $calculator)
     {
-        abort_unless($request->user()->role->isCeo(), 403);
+        abort_unless($request->user()->isCeo(), 403);
 
         $request->merge([
             'program_extra_percent' => $this->parsePercent($request->input('program_extra_percent')),

@@ -38,6 +38,9 @@ class UserManagementController extends Controller
             'phone'        => ['nullable', 'string', 'max:20'],
             'password'     => ['required', 'string', 'min:6'],
             'role'         => ['required', Rule::enum(UserRole::class)],
+            // extra_roles cuma NAMBAH hak akses. CEO dilarang jadi role tambahan.
+            'extra_roles'   => ['nullable', 'array'],
+            'extra_roles.*' => ['string', Rule::enum(UserRole::class), Rule::notIn([UserRole::Ceo->value])],
             // branch_id tetap menjadi cabang utama agar fitur lama tetap kompatibel.
             'branch_id'    => ['required', 'integer', 'exists:branches,id', Rule::in($selectedBranchIds)],
             // Semua cabang yang boleh digunakan untuk absensi.
@@ -45,9 +48,10 @@ class UserManagementController extends Controller
             'branch_ids.*' => ['required', 'integer', 'distinct', 'exists:branches,id'],
             'base_salary'  => ['nullable', 'integer', 'min:0'],
         ], [
-            'branch_id.in'        => 'Cabang utama harus termasuk cabang absensi yang dicentang.',
-            'branch_ids.required' => 'Pilih minimal satu cabang absensi.',
-            'branch_ids.min'      => 'Pilih minimal satu cabang absensi.',
+            'branch_id.in'          => 'Cabang utama harus termasuk cabang absensi yang dicentang.',
+            'branch_ids.required'   => 'Pilih minimal satu cabang absensi.',
+            'branch_ids.min'        => 'Pilih minimal satu cabang absensi.',
+            'extra_roles.*.not_in'  => 'CEO tidak bisa dijadikan role tambahan.',
         ]);
 
         $branchIds = collect($data['branch_ids'])
@@ -60,6 +64,7 @@ class UserManagementController extends Controller
 
         $data['is_active']   = $request->boolean('is_active');
         $data['base_salary'] = $data['base_salary'] ?? 0;
+        $data['extra_roles'] = $this->sanitizeExtraRoles($data['extra_roles'] ?? [], $data['role']);
 
         $user = DB::transaction(function () use ($data, $branchIds) {
             // Password otomatis di-hash oleh cast 'hashed' di model User.
@@ -93,14 +98,18 @@ class UserManagementController extends Controller
             'phone'        => ['nullable', 'string', 'max:20'],
             'password'     => ['nullable', 'string', 'min:6'], // kosong = password tidak diubah
             'role'         => ['required', Rule::enum(UserRole::class)],
+            // extra_roles cuma NAMBAH hak akses. CEO dilarang jadi role tambahan.
+            'extra_roles'   => ['nullable', 'array'],
+            'extra_roles.*' => ['string', Rule::enum(UserRole::class), Rule::notIn([UserRole::Ceo->value])],
             'branch_id'    => ['required', 'integer', 'exists:branches,id', Rule::in($selectedBranchIds)],
             'branch_ids'   => ['required', 'array', 'min:1'],
             'branch_ids.*' => ['required', 'integer', 'distinct', 'exists:branches,id'],
             'base_salary'  => ['nullable', 'integer', 'min:0'],
         ], [
-            'branch_id.in'        => 'Cabang utama harus termasuk cabang absensi yang dicentang.',
-            'branch_ids.required' => 'Pilih minimal satu cabang absensi.',
-            'branch_ids.min'      => 'Pilih minimal satu cabang absensi.',
+            'branch_id.in'          => 'Cabang utama harus termasuk cabang absensi yang dicentang.',
+            'branch_ids.required'   => 'Pilih minimal satu cabang absensi.',
+            'branch_ids.min'        => 'Pilih minimal satu cabang absensi.',
+            'extra_roles.*.not_in'  => 'CEO tidak bisa dijadikan role tambahan.',
         ]);
 
         $branchIds = collect($data['branch_ids'])
@@ -111,7 +120,8 @@ class UserManagementController extends Controller
 
         unset($data['branch_ids']);
 
-        $data['is_active'] = $request->boolean('is_active');
+        $data['is_active']   = $request->boolean('is_active');
+        $data['extra_roles'] = $this->sanitizeExtraRoles($data['extra_roles'] ?? [], $data['role']);
 
         // Anti kunci diri sendiri: CEO tidak boleh menonaktifkan
         // atau menurunkan role akunnya yang sedang dipakai.
@@ -166,5 +176,27 @@ class UserManagementController extends Controller
             ->unique()
             ->values()
             ->all();
+    }
+
+    /**
+     * Bersihkan role tambahan sebelum disimpan:
+     * - buang CEO (belt-and-suspenders — validasi sudah menolak, ini jaga kalau lolos),
+     * - buang duplikat jabatan utama (mubazir; union sudah menyertakannya),
+     * - dedup, dan simpan null kalau kosong biar kolomnya rapi.
+     *
+     * @param  array<int, string>  $extras
+     * @return array<int, string>|null
+     */
+    protected function sanitizeExtraRoles(array $extras, string $primaryRole): ?array
+    {
+        $clean = collect($extras)
+            ->map(fn ($r) => (string) $r)
+            ->reject(fn ($r) => $r === UserRole::Ceo->value)
+            ->reject(fn ($r) => $r === $primaryRole)
+            ->unique()
+            ->values()
+            ->all();
+
+        return $clean ?: null;
     }
 }

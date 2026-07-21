@@ -115,7 +115,7 @@ class MetricController extends Controller
     /** Hapus 1 pencatatan yang salah input. */
     public function destroySnapshot(\App\Models\VideoMetricSnapshot $snapshot)
     {
-        abort_unless(request()->user()->role->isCeo(), 403, 'Hanya CEO yang bisa menghapus riwayat pencatatan.');
+        abort_unless(request()->user()->isCeo(), 403, 'Hanya CEO yang bisa menghapus riwayat pencatatan.');
 
         $snapshot->delete();
 

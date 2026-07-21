@@ -53,7 +53,7 @@ class LeaveApprovalController extends Controller
         $isPaid = null;
         if ($approved) {
             $isPaid = $leave->type->defaultPaid();
-            if ($leave->type === LeaveType::Izin && $request->user()->role->isCeo()) {
+            if ($leave->type === LeaveType::Izin && $request->user()->isCeo()) {
                 $isPaid = $request->boolean('is_paid');
             }
         }
@@ -132,7 +132,7 @@ class LeaveApprovalController extends Controller
      */
     public function destroy(Request $request, LeaveRequest $leave)
     {
-        abort_unless($request->user()->role->isCeo(), 403, 'Hanya CEO yang bisa menghapus pengajuan.');
+        abort_unless($request->user()->isCeo(), 403, 'Hanya CEO yang bisa menghapus pengajuan.');
 
         $wasApproved = $leave->status === LeaveStatus::Approved;
         $name        = $leave->user->name;
@@ -149,7 +149,7 @@ class LeaveApprovalController extends Controller
 
     public function trash(Request $request)
     {
-        abort_unless($request->user()->role->isCeo(), 403, 'Hanya CEO yang bisa melihat sampah.');
+        abort_unless($request->user()->isCeo(), 403, 'Hanya CEO yang bisa melihat sampah.');
 
         return view('leaves.trash', [
             'trashed' => LeaveRequest::onlyTrashed()->with('user')
@@ -159,7 +159,7 @@ class LeaveApprovalController extends Controller
 
     public function restore(Request $request, int $id)
     {
-        abort_unless($request->user()->role->isCeo(), 403, 'Hanya CEO yang bisa memulihkan.');
+        abort_unless($request->user()->isCeo(), 403, 'Hanya CEO yang bisa memulihkan.');
 
         $leave = LeaveRequest::onlyTrashed()->findOrFail($id);
         $leave->restore();
@@ -174,7 +174,7 @@ class LeaveApprovalController extends Controller
 
     public function forceDelete(Request $request, int $id)
     {
-        abort_unless($request->user()->role->isCeo(), 403, 'Hanya CEO yang bisa menghapus permanen.');
+        abort_unless($request->user()->isCeo(), 403, 'Hanya CEO yang bisa menghapus permanen.');
 
         $leave = LeaveRequest::onlyTrashed()->findOrFail($id);
         $name  = $leave->user->name;
@@ -185,7 +185,7 @@ class LeaveApprovalController extends Controller
 
     public function clearTrash(Request $request)
     {
-        abort_unless($request->user()->role->isCeo(), 403, 'Hanya CEO yang bisa mengosongkan sampah.');
+        abort_unless($request->user()->isCeo(), 403, 'Hanya CEO yang bisa mengosongkan sampah.');
 
         $count = LeaveRequest::onlyTrashed()->count();
         LeaveRequest::onlyTrashed()->forceDelete();

@@ -9,7 +9,7 @@ class EnsureUserCanAccessService
 {
     public function handle(Request $request, Closure $next)
     {
-        abort_unless($request->user()?->role->canAccessService(), 403,
+        abort_unless($request->user()?->canAccessService(), 403,
             'Anda tidak punya akses ke modul Service.');
 
         return $next($request);

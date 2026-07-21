@@ -47,7 +47,15 @@
                                 <span class="block text-[11px] text-slate-400">📱 {{ $u->phone }}</span>
                             @endif
                         </td>
-                        <td class="px-4 py-3">{{ $u->role->label() }}</td>
+                        <td class="px-4 py-3">
+                            {{ $u->role->label() }}
+                            @foreach($u->extra_roles ?? [] as $er)
+                                @php $erEnum = \App\Enums\UserRole::tryFrom($er); @endphp
+                                @if($erEnum)
+                                    <span class="ml-1 px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[10px]">+ {{ $erEnum->label() }}</span>
+                                @endif
+                            @endforeach
+                        </td>
                         <td class="px-4 py-3">
                             @forelse($attendanceBranches as $branch)
                                 <span class="inline-flex items-center mb-1 mr-1 px-2 py-0.5 rounded-full text-[11px] font-medium

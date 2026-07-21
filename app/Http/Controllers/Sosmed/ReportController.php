@@ -112,7 +112,7 @@ class ReportController extends Controller
     /** Ubah target — CEO only. Riwayat tersimpan, tidak menimpa. */
     public function storeTarget(Request $request)
     {
-        abort_unless($request->user()->role->isCeo(), 403, 'Hanya CEO yang bisa mengubah target.');
+        abort_unless($request->user()->isCeo(), 403, 'Hanya CEO yang bisa mengubah target.');
 
         $data = $request->validate([
             'video_count'    => ['required', 'integer', 'min:1', 'max:100'],

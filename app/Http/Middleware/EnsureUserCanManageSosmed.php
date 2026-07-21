@@ -9,7 +9,7 @@ class EnsureUserCanManageSosmed
 {
     public function handle(Request $request, Closure $next)
     {
-        abort_unless($request->user()?->role->canManageSosmed(), 403, 'Khusus PIC Sosmed atau CEO.');
+        abort_unless($request->user()?->canManageSosmed(), 403, 'Khusus PIC Sosmed atau CEO.');
 
         return $next($request);
     }

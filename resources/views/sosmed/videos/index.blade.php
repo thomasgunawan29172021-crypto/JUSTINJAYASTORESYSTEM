@@ -35,6 +35,16 @@
                 @endforeach
             </select>
         </div>
+        <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Urutkan</label>
+            <select name="sort" onchange="this.form.submit()"
+                    class="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
+                <option value="terbaru"    @selected(($sort ?? 'terbaru') === 'terbaru')>Terbaru</option>
+                <option value="terlama"    @selected(($sort ?? '') === 'terlama')>Terlama</option>
+                <option value="views_desc" @selected(($sort ?? '') === 'views_desc')>Views terbanyak</option>
+                <option value="views_asc"  @selected(($sort ?? '') === 'views_asc')>Views terdikit</option>
+            </select>
+        </div>
         <button class="rounded-lg bg-slate-900 text-white px-4 py-2 text-sm font-semibold">Terapkan</button>
     </form>
 

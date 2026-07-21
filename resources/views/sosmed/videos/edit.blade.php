@@ -183,7 +183,7 @@
                                 <td>{{ $n($s->saves) }}</td>
                                 <td class="text-xs text-slate-400">{{ $s->recorder?->name ?? '—' }}</td>
                                 <td class="text-right">
-                                    @if(auth()->user()->role->isCeo())
+                                    @if(auth()->user()->isCeo())
                                         <form method="POST" action="{{ route('sosmed.snapshots.destroy', $s) }}" class="inline"
                                               onsubmit="return confirm('Hapus pencatatan ini? Angka kembali ke pencatatan sebelumnya.')">
                                             @csrf @method('DELETE')

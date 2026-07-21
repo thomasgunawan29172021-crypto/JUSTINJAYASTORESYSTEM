@@ -9,7 +9,7 @@ class EnsureUserIsCeo
 {
     public function handle(Request $request, Closure $next)
     {
-        abort_unless($request->user()?->role->isCeo(), 403, 'Menu ini khusus CEO.');
+        abort_unless($request->user()?->isCeo(), 403, 'Menu ini khusus CEO.');
 
         return $next($request);
     }
