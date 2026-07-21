@@ -58,9 +58,28 @@ class TaskController extends Controller
             ->when($since, fn ($qq) => $qq->where('created_at', '>=', $since))
             ->orderByRaw('pinned_at IS NULL')
             ->orderByDesc('pinned_at')
+            ->orderByRaw('store_id')       // tugas toko sama tetap berdekatan walau ter-paginate
             ->orderBy('created_at')
-            ->get()
-            ->groupBy(fn ($t) => $t->store->label());
+            // Nama halaman 'page' (default) — riwayat pakai 'done_page', jadi gak saling reset.
+            ->paginate(50)
+            ->withQueryString();
+
+        // Ringkasan jumlah tugas pending per toko — buat panel pilih toko di halaman awal.
+        // COUNT + groupBy di DB: ringan walau tugasnya 9000, karena yang balik cuma
+        // ~10 baris angka, bukan 9000 baris data.
+        $storeCounts = MarketplaceTask::query()
+            ->where('status', MarketplaceTask::STATUS_PENDING)
+            ->when(! $isCeo, fn ($qq) => $qq->whereExists(function ($sub) use ($user) {
+                $sub->select(DB::raw(1))
+                    ->from('brand_store_user')
+                    ->join('products', 'products.brand_id', '=', 'brand_store_user.brand_id')
+                    ->whereColumn('products.id', 'marketplace_tasks.product_id')
+                    ->whereColumn('brand_store_user.store_id', 'marketplace_tasks.store_id')
+                    ->where('brand_store_user.user_id', $user->id);
+            }))
+            ->selectRaw('store_id, COUNT(*) as total')
+            ->groupBy('store_id')
+            ->pluck('total', 'store_id');
 
         // Nama parameter halaman sengaja 'done_page', bukan 'page' — supaya kalau nanti
         // antrian pending ikut di-paginate, keduanya tidak saling reset.
@@ -101,6 +120,7 @@ class TaskController extends Controller
             'brands'     => $brands,
             'storeId'    => $storeId,
             'brandId'    => $brandId,
+            'storeCounts' => $storeCounts,
         ]);
     }
 

@@ -6,38 +6,58 @@
 
 @section('content')
     <h1 class="text-xl font-bold mb-1">Tugas Marketplace</h1>
-    <p class="text-sm text-slate-500 mb-5">
+    <p class="text-sm text-slate-500 mb-4">
         {{ $isCeo ? 'Semua tugas di semua toko (mode CEO).' : 'Tugas untuk toko yang Anda pegang.' }}
     </p>
 
-    @if($pending->isNotEmpty())
-        <div class="mb-4">
+    {{-- Ringkasan jumlah tugas per toko. Query COUNT ringan (balik ~10 angka, bukan
+         9000 baris) — sekaligus jadi tombol filter cepat ke toko itu. --}}
+    @if($storeCounts->isNotEmpty())
+        <div class="flex flex-wrap gap-2 mb-4">
+            <a href="{{ route('marketplace.tasks.index', array_filter(['range' => $range, 'brand_id' => $brandId, 'q' => $q])) }}"
+               class="rounded-xl border px-3 py-1.5 text-sm font-semibold {{ ! $storeId ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-300 hover:border-emerald-400' }}">
+                Semua <span class="opacity-70">({{ $storeCounts->sum() }})</span>
+            </a>
+            @foreach($stores as $s)
+                @php $cnt = $storeCounts[$s->id] ?? 0; @endphp
+                @continue($cnt === 0)
+                <a href="{{ route('marketplace.tasks.index', array_filter(['store_id' => $s->id, 'range' => $range, 'brand_id' => $brandId, 'q' => $q])) }}"
+                   class="rounded-xl border px-3 py-1.5 text-sm {{ $storeId == $s->id ? 'bg-emerald-500 text-white border-emerald-500 font-semibold' : 'bg-white border-slate-300 hover:border-emerald-400' }}">
+                    🏬 {{ $s->label() }} <span class="opacity-70">({{ $cnt }})</span>
+                </a>
+            @endforeach
+        </div>
+    @endif
+
+    <div class="flex items-center justify-between gap-2 mb-4 flex-wrap">
+        @if($pending->total() > 0)
             <button type="button" id="bulkToggle"
                     class="rounded-xl bg-white border border-slate-300 px-4 py-2 text-sm font-semibold hover:border-emerald-400">
                 ☑️ Pilih Tugas
             </button>
-        </div>
-    @endif
+        @else
+            <span></span>
+        @endif
+        <p class="text-xs text-slate-400">{{ $pending->total() }} tugas menunggu</p>
+    </div>
 
-    {{-- SATU kotak cari untuk dua daftar. Ketik = antrian tersaring instan (JS).
-         Enter/Cari = server ikut menyaring riwayat Selesai dengan kata yang sama. --}}
+    {{-- Search SERVER (bukan lagi instan JS): ketik + Enter/Cari. Untuk 9000 tugas,
+         nyaring di browser gak realistis — antriannya di-paginate, jadi filter harus
+         di DB. Satu kotak menyaring antrian DAN riwayat sekaligus. --}}
     <form method="GET" class="mb-5 flex flex-wrap items-center gap-2">
         <div class="relative max-w-md flex-1 min-w-52">
             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
-            <input type="text" id="taskSearch" name="q" value="{{ $q }}" autocomplete="off"
-                   placeholder="Cari produk… (ketik = saring antrian, Enter = cari riwayat juga)"
+            <input type="text" name="q" value="{{ $q }}" autocomplete="off"
+                   placeholder="Cari produk lalu tekan Enter…"
                    class="w-full rounded-xl border border-slate-300 bg-white pl-9 pr-9 py-2.5 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100">
             @if($q)
                 <a href="{{ route('marketplace.tasks.index', array_filter(['range' => $range, 'store_id' => $storeId, 'brand_id' => $brandId])) }}"
                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500">✕</a>
             @endif
         </div>
-        <select name="store_id" class="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm">
-            <option value="">Semua toko</option>
-            @foreach($stores as $s)
-                <option value="{{ $s->id }}" @selected($storeId == $s->id)>{{ $s->label() }}</option>
-            @endforeach
-        </select>
+        {{-- store_id ikut submit sebagai hidden — biar chip toko yang aktif gak ke-reset
+             pas cari/ganti brand. --}}
+        <input type="hidden" name="store_id" value="{{ $storeId ?: '' }}">
         <select name="brand_id" class="rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm">
             <option value="">Semua brand</option>
             @foreach($brands as $b)
@@ -54,8 +74,6 @@
         <button class="rounded-xl bg-slate-900 text-white text-sm font-semibold px-4 py-2.5">Cari</button>
     </form>
 
-    <p id="taskSearchInfo" class="hidden text-[11px] text-slate-400 -mt-3 mb-4"></p>
-
     @if($pending->isEmpty())
         <div class="bg-white rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-400 mb-6">
             Tidak ada tugas menunggu. 👍
@@ -63,125 +81,71 @@
                 <span class="block mt-1 text-[11px]">Kalau Anda merasa harusnya punya tugas, minta CEO menetapkan Anda sebagai PIC brand (menu Brand → Edit).</span>
             @endunless
         </div>
-    @endif
+    @else
+        {{-- Flat grid — bukan lagi grouping per toko (gak kompatibel sama paginate:
+             satu halaman cuma 50 tugas, grouping-nya jadi acak antar halaman).
+             Label toko pindah ke tiap card. orderBy('store_id') di controller bikin
+             toko yang sama tetap berdekatan. --}}
+        <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 mb-4">
+            @foreach($pending as $t)
+                @php $price = $t->product->priceForStore($t->store); @endphp
+                <div class="bg-white rounded-xl border {{ $t->pinned_at ? 'border-amber-400 ring-1 ring-amber-200' : 'border-slate-200' }} p-4 relative"
+                     data-task-card>
+                    <form method="POST" action="{{ route('marketplace.tasks.pin', $t) }}" class="absolute top-2 right-2">
+                        @csrf
+                        <button title="{{ $t->pinned_at ? 'Lepas pin' : 'Pin ke depan' }}"
+                                class="text-base leading-none {{ $t->pinned_at ? '' : 'opacity-30 hover:opacity-100' }}">📌</button>
+                    </form>
 
-    @foreach($pending as $storeLabel => $tasks)
-        <section class="mb-5 rounded-xl border border-slate-200 bg-slate-50/50" data-store-section>
-            {{-- Judul toko sticky RELATIF ke kotak scroll-nya sendiri: pas scroll tugas
-                 di dalam satu toko, judulnya nempel di atas kotak itu. --}}
-            <h2 class="sticky top-0 z-10 rounded-t-xl px-4 py-2.5 bg-white border-b border-slate-200 text-sm font-semibold text-slate-600 uppercase tracking-wide">
-                🏬 {{ $storeLabel }}
-                <span class="text-slate-400 font-normal js-store-count" data-total="{{ $tasks->count() }}">({{ $tasks->count() }} tugas)</span>
-            </h2>
+                    <div class="flex items-center gap-2 mb-1 pr-6">
+                        <label class="js-bulk-pick hidden cursor-pointer shrink-0 flex items-center">
+                            <input type="checkbox" class="bulk-cb rounded accent-emerald-500 w-4 h-4 block" value="{{ $t->id }}">
+                        </label>
+                        <span class="px-2 py-0.5 rounded-full text-[11px] font-medium
+                            @if($t->type === \App\Models\MarketplaceTask::TYPE_POSTING) bg-emerald-100 text-emerald-800
+                            @elseif($t->type === \App\Models\MarketplaceTask::TYPE_REVISION) bg-rose-100 text-rose-800
+                            @else bg-amber-100 text-amber-800 @endif">
+                            {{ $t->typeLabel() }}
+                        </span>
+                        <span class="text-[11px] text-slate-400 ml-auto">{{ $t->created_at->diffForHumans() }}</span>
+                    </div>
 
-            {{-- Scroll per toko: max-height doang, tanpa min — kotak nempel isi kalau
-                 tugasnya dikit, baru scroll kalau lewat batas. Header search/filter
-                 global tetap di luar, jadi selalu diem. --}}
-            <div class="overflow-y-auto p-3" style="max-height: 420px;" data-store-scroll>
-                <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    @foreach($tasks as $t)
-                        @php $price = $t->product->priceForStore($t->store); @endphp
-                        <div class="bg-white rounded-xl border {{ $t->pinned_at ? 'border-amber-400 ring-1 ring-amber-200' : 'border-slate-200' }} p-4 relative"
-                             data-task-card data-search="{{ strtolower($t->product->name.' '.$t->product->brand->name) }}">
-                            <form method="POST" action="{{ route('marketplace.tasks.pin', $t) }}" class="absolute top-2 right-2">
-                                @csrf
-                                <button title="{{ $t->pinned_at ? 'Lepas pin' : 'Pin ke depan' }}"
-                                        class="text-base leading-none {{ $t->pinned_at ? '' : 'opacity-30 hover:opacity-100' }}">📌</button>
-                            </form>
+                    <p class="font-semibold text-sm">{{ $t->product->name }}</p>
+                    <p class="text-xs text-slate-500">
+                        {{ $t->product->brand->name }}
+                        <span class="text-slate-300">·</span>
+                        <span class="text-slate-400">🏬 {{ $t->store->label() }}</span>
+                    </p>
 
-                            <div class="flex items-center gap-2 mb-1 pr-6">
-                                <label class="js-bulk-pick hidden cursor-pointer shrink-0 flex items-center">
-                                    <input type="checkbox" class="bulk-cb rounded accent-emerald-500 w-4 h-4 block" value="{{ $t->id }}">
-                                </label>
-                                <span class="px-2 py-0.5 rounded-full text-[11px] font-medium
-                                    @if($t->type === \App\Models\MarketplaceTask::TYPE_POSTING) bg-emerald-100 text-emerald-800
-                                    @elseif($t->type === \App\Models\MarketplaceTask::TYPE_REVISION) bg-rose-100 text-rose-800
-                                    @else bg-amber-100 text-amber-800 @endif">
-                                    {{ $t->typeLabel() }}
-                                </span>
-                                <span class="text-[11px] text-slate-400 ml-auto">{{ $t->created_at->diffForHumans() }}</span>
-                            </div>
+                    <p class="text-sm mt-2">
+                        Harga pasang:
+                        @if($price !== null)
+                            <b>{{ $rp($price) }}</b>
+                            <span class="text-[11px] text-slate-400">({{ $t->store->is_mall ? 'harga mall' : 'harga non-mall' }})</span>
+                        @else
+                            <span class="text-rose-600 text-xs font-semibold">belum diset — hubungi CEO</span>
+                        @endif
+                    </p>
 
-                            <p class="font-semibold text-sm">{{ $t->product->name }}</p>
-                            <p class="text-xs text-slate-500">{{ $t->product->brand->name }}</p>
+                    @if($t->note)
+                        <p class="text-[11px] text-slate-400 mt-1">📝 {{ $t->note }}</p>
+                    @endif
 
-                            <p class="text-sm mt-2">
-                                Harga pasang:
-                                @if($price !== null)
-                                    <b>{{ $rp($price) }}</b>
-                                    <span class="text-[11px] text-slate-400">({{ $t->store->is_mall ? 'harga mall' : 'harga non-mall' }})</span>
-                                @else
-                                    <span class="text-rose-600 text-xs font-semibold">belum diset — hubungi CEO</span>
-                                @endif
-                            </p>
-
-                            @if($t->note)
-                                <p class="text-[11px] text-slate-400 mt-1">📝 {{ $t->note }}</p>
-                            @endif
-
-                            <form method="POST" action="{{ route('marketplace.tasks.complete', $t) }}" class="js-single-complete mt-3"
-                                  onsubmit="return confirm('Tandai selesai? Pastikan {{ $t->type === \App\Models\MarketplaceTask::TYPE_POSTING ? 'postingan sudah tayang' : 'harga sudah diubah' }} di {{ $t->store->name }}.')">
-                                @csrf
-                                <button class="w-full rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold py-2">
-                                    ✓ Tandai Selesai
-                                </button>
-                            </form>
-                        </div>
-                    @endforeach
+                    <form method="POST" action="{{ route('marketplace.tasks.complete', $t) }}" class="js-single-complete mt-3"
+                          onsubmit="return confirm('Tandai selesai? Pastikan {{ $t->type === \App\Models\MarketplaceTask::TYPE_POSTING ? 'postingan sudah tayang' : 'harga sudah diubah' }} di {{ $t->store->name }}.')">
+                        @csrf
+                        <button class="w-full rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold py-2">
+                            ✓ Tandai Selesai
+                        </button>
+                    </form>
                 </div>
-            </div>
-        </section>
-    @endforeach
+            @endforeach
+        </div>
 
-    <div id="taskNoResults" class="hidden bg-white rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-400 mb-6">
-        Tidak ada produk yang cocok dengan pencarian.
-    </div>
-
-    {{-- Search JS: SATU kali, di luar loop. Sebelumnya kepasang per-toko (jalan
-         berkali-kali tiap ketik) — sekarang cukup sekali. --}}
-    <script>
-    (function () {
-        var input = document.getElementById('taskSearch');
-        if (!input) return;
-        var info     = document.getElementById('taskSearchInfo');
-        var noRes    = document.getElementById('taskNoResults');
-        var sections = document.querySelectorAll('[data-store-section]');
-
-        function apply() {
-            var q = input.value.trim().toLowerCase();
-            var totalVisible = 0;
-
-            sections.forEach(function (sec) {
-                var cards = sec.querySelectorAll('[data-task-card]');
-                var shown = 0;
-                cards.forEach(function (card) {
-                    var hay = card.getAttribute('data-search') || '';
-                    var match = q === '' || hay.indexOf(q) !== -1;
-                    card.style.display = match ? '' : 'none';
-                    if (match) shown++;
-                });
-                sec.style.display = shown === 0 ? 'none' : '';
-                totalVisible += shown;
-
-                var badge = sec.querySelector('.js-store-count');
-                if (badge) {
-                    var total = badge.getAttribute('data-total');
-                    badge.textContent = q === ''
-                        ? '(' + total + ' tugas)'
-                        : '(' + shown + ' dari ' + total + ')';
-                }
-            });
-
-            if (noRes) noRes.classList.toggle('hidden', !(q !== '' && totalVisible === 0));
-            if (info) {
-                if (q === '') { info.classList.add('hidden'); }
-                else { info.classList.remove('hidden'); info.textContent = totalVisible + ' produk cocok.'; }
-            }
-        }
-
-        input.addEventListener('input', apply);
-    })();
-    </script>
+        {{-- Pagination pending pakai parameter 'page' (default); riwayat pakai
+             'done_page' — jadi pindah halaman antrian gak me-reset riwayat, sebaliknya juga. --}}
+        <div class="mb-6">{{ $pending->links() }}</div>
+    @endif
 
     <section>
         <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
@@ -228,8 +192,7 @@
         @endif
     </section>
 
-    {{-- Form tersembunyi: card udah punya form sendiri (pin & selesai), dan form
-         gak boleh nested. Jadi checkbox dikumpulin JS, baru disuntik ke sini. --}}
+    {{-- Form tersembunyi buat bulk — card punya form sendiri, form gak boleh nested. --}}
     <form method="POST" action="{{ route('marketplace.tasks.bulk-complete') }}" id="bulkForm" class="hidden">
         @csrf
         <div id="bulkInputs"></div>
@@ -265,8 +228,6 @@
             var n = checked().length;
             count.textContent = n;
             bar.classList.toggle('hidden', !on);
-
-            /* Card yang kepilih dikasih ring — banyak checkbox kecil susah dipindai. */
             boxes().forEach(function (b) {
                 var card = b.closest('[data-task-card]');
                 if (card) { card.classList.toggle('ring-2', b.checked); card.classList.toggle('ring-emerald-400', b.checked); }
@@ -276,8 +237,6 @@
         function setMode(v) {
             on = v;
             picks().forEach(function (e)  { e.classList.toggle('hidden', !on); });
-            /* Tombol per-card disembunyiin pas mode pilih — dua jalan nyelesaiin
-               tugas di layar yang sama itu bikin salah pencet. */
             singles().forEach(function (e) { e.classList.toggle('hidden', on); });
             toggle.textContent = on ? '✕ Batal Pilih' : '☑️ Pilih Tugas';
             if (!on) boxes().forEach(function (b) { b.checked = false; });
@@ -294,18 +253,12 @@
         document.getElementById('bulkSubmit').addEventListener('click', function () {
             var sel = checked();
             if (!sel.length) return;
-
-            /* Konfirmasi WAJIB nyebut jumlahnya: nyelesaiin tugas posting itu bikin
-               kredit produktivitas atas nama orang yang mencet. Salah pencet =
-               kredit palsu. Bisa di-undo, tapi mending jangan kejadian. */
             if (!confirm('Tandai ' + sel.length + ' tugas sebagai selesai? Pastikan semuanya memang sudah dikerjakan.')) return;
 
             inputs.innerHTML = '';
             sel.forEach(function (b) {
                 var i = document.createElement('input');
-                i.type  = 'hidden';
-                i.name  = 'task_ids[]';
-                i.value = b.value;
+                i.type = 'hidden'; i.name = 'task_ids[]'; i.value = b.value;
                 inputs.appendChild(i);
             });
             form.submit();
