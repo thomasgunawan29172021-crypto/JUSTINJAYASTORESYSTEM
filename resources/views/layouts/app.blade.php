@@ -8,7 +8,7 @@
     @hasSection('autorefresh')
         <meta http-equiv="refresh" content="60">
     @endif
-    <script src="https://cdn.tailwindcss.com"></script>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     @php
         $u = auth()->user();
