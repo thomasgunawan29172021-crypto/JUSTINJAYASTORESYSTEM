@@ -695,6 +695,13 @@ class ProductController extends Controller
             // nested = rekursi, dan gak ada gunanya buat toko HP.
             'components'   => Product::where('is_bundle', false)->whereNull('archived_at')
                 ->orderBy('name')->get(['id', 'name', 'cost_price']),
+            // Peta brand → id toko target (buat filter daftar "sudah terposting" di
+            // form: cuma toko brand terpilih yang ditampilkan). Server udah lama
+            // meng-intersect centangan dengan toko brand — ini nyamain TAMPILAN
+            // dengan perilaku itu, biar gak ada centangan yang diam-diam diabaikan.
+            'brandStores'  => Brand::with(['stores' => fn ($q) => $q->where('is_active', true)])
+                ->get()
+                ->mapWithKeys(fn ($b) => [$b->id => $b->stores->pluck('id')->all()]),
         ];
     }
 
