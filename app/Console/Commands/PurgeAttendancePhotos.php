@@ -10,11 +10,11 @@ class PurgeAttendancePhotos extends Command
 {
     protected $signature = 'attendance:purge-photos';
 
-    protected $description = 'Hapus foto selfie absen > 10 hari (kebijakan retensi Thomas). Record absennya TETAP disimpan.';
+    protected $description = 'Hapus foto selfie absen > 45 hari (kebijakan retensi Thomas). Record absennya TETAP disimpan.';
 
     public function handle(): int
     {
-        $olds = Attendance::whereDate('work_date', '<', today()->subDays(10))
+        $olds = Attendance::whereDate('work_date', '<', today()->subDays(45))
             ->where(fn ($q) => $q->whereNotNull('clock_in_photo')->orWhereNotNull('clock_out_photo'))
             ->get();
 
