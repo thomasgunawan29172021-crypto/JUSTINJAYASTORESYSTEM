@@ -56,8 +56,8 @@
                 ['Izin & Cuti',    'leaves.index', true],
                 ['Rekap Saya',     'attendance.myrecap', true],
                 ['Approval Izin',  'leaves.manage', $isManager],
-                ['Rekap Absensi',  'attendance.recap', $isCeo],
-                ['Jadwal Kerja',   'attendance.schedules', $isCeo],
+                ['Rekap Absensi',  'attendance.recap', $isManager],
+                ['Jadwal Kerja',   'attendance.schedules', $isManager],
                 ['Libur Nasional', 'holidays.index', $isCeo],
             ]],
             'keuangan' => ['label' => 'Keuangan', 'tiles' => [

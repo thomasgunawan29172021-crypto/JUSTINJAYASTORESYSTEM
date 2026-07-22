@@ -184,6 +184,17 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('/targets', [\App\Http\Controllers\Sosmed\ReportController::class, 'storeTarget'])->name('targets.store');
     });
 
+    // ---------------- KEPALA TOKO / CEO ----------------
+    // Rekap absensi & jadwal kerja boleh diakses Kepala Toko juga (bukan cuma CEO).
+    // Koreksi absen tetap CEO-only — lihat grup 'ceo' di bawah.
+    Route::middleware('manager')->group(function () {
+        Route::get('/attendance/schedules',        [WorkScheduleController::class, 'index'])->name('attendance.schedules');
+        Route::put('/attendance/schedules/{user}', [WorkScheduleController::class, 'upsert'])->name('attendance.schedules.upsert');
+
+        Route::get('/attendance/recap',        [AttendanceRecapController::class, 'index'])->name('attendance.recap');
+        Route::get('/attendance/recap/{user}', [AttendanceRecapController::class, 'show'])->name('attendance.recap.show');
+    });
+
     // ---------------- KHUSUS CEO ----------------
     Route::middleware('ceo')->group(function () {
 
@@ -195,12 +206,6 @@ Route::middleware(['auth', 'active'])->group(function () {
             Route::put('/{user}',      [UserManagementController::class, 'update'])->name('update');
             Route::delete('/{user}',   [UserManagementController::class, 'destroy'])->name('destroy');
         });
-
-        Route::get('/attendance/schedules',        [WorkScheduleController::class, 'index'])->name('attendance.schedules');
-        Route::put('/attendance/schedules/{user}', [WorkScheduleController::class, 'upsert'])->name('attendance.schedules.upsert');
-        
-        Route::get('/attendance/recap',        [AttendanceRecapController::class, 'index'])->name('attendance.recap');
-        Route::get('/attendance/recap/{user}', [AttendanceRecapController::class, 'show'])->name('attendance.recap.show');
 
         // Koreksi absen — CEO only. Data asli tidak ditimpa diam-diam: setiap
         // perubahan menyimpan snapshot before/after + alasan wajib di audit trail.
