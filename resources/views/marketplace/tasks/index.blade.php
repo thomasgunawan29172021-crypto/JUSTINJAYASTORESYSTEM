@@ -111,6 +111,9 @@
                     </div>
 
                     <p class="font-semibold text-sm">{{ $t->product->name }}</p>
+                    @if($t->product->sku)
+                        <p class="text-[11px] text-slate-400 font-mono">SKU: {{ $t->product->sku }}</p>
+                    @endif
                     <p class="text-xs text-slate-500">
                         {{ $t->product->brand->name }}
                         <span class="text-slate-300">·</span>
