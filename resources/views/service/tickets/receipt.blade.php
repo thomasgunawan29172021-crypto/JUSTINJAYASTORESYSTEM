@@ -27,9 +27,9 @@
 
         <div class="flex justify-between gap-4 pb-3 border-b-2 border-slate-800">
             <div class="flex gap-3 items-start max-w-[70mm]">
-                <img src="{{ asset('images/logo.png') }}" alt="Justin Jaya" class="h-12 w-auto" onerror="this.style.display='none'">
+                <img src="{{ asset('images/logo.png') }}" alt="Justin Jaya" class="h-20 w-auto" onerror="this.style.display='none'">
                 <div>
-                    <p class="font-extrabold text-base leading-tight">JUSTIN JAYA</p>
+                    <p class="font-extrabold text-base leading-tight">JUSTIN JAYA STORE</p>
                     <p class="text-[10px] text-slate-600 leading-tight">{{ $ticket->branch->name }}</p>
                     @if($ticket->branch->address)<p class="text-[10px] text-slate-600 leading-tight mt-0.5">{{ $ticket->branch->address }}</p>@endif
                     @if($ticket->branch->phone)<p class="text-[10px] text-slate-600">{{ $ticket->branch->phone }} (WA)</p>@endif
@@ -87,10 +87,10 @@
             <p class="mb-1">1. Pelanggan menyatakan data pada nota ini benar dan telah memeriksa kondisi unit bersama petugas saat penyerahan.</p>
             <p class="mb-1">2. Pelanggan disarankan mencadangkan data sebelum menyerahkan unit. Justin Jaya tidak bertanggung jawab atas kehilangan data selama proses pengecekan/perbaikan.</p>
             <p class="mb-1">3. Estimasi selesai dapat berubah mengikuti ketersediaan sparepart dan tingkat kerusakan. Perkembangan dapat dipantau melalui halaman lacak dengan nomor servis dan nomor HP.</p>
-            <p class="mb-1">4. Garansi servis {{ $ticket->warranty_days }} hari hanya berlaku untuk keluhan dan sparepart yang sama, dan gugur apabila: unit terkena cairan, jatuh/benturan, segel dibuka pihak lain, atau kerusakan baru di luar pengerjaan.</p>
+            <p class="mb-1">4. Garansi servis hanya berlaku untuk keluhan dan sparepart yang sama, dan gugur apabila: unit terkena cairan, jatuh/benturan, segel dibuka pihak lain, atau kerusakan baru di luar pengerjaan dan hanya berlaku jika pihak toko memberikan garansi sesuai perjanjian di nota ini.</p>
             <p class="mb-1">5. Kelengkapan yang diserahkan hanya yang tercantum pada nota ini. Kelengkapan yang tidak tercantum bukan tanggung jawab Justin Jaya.</p>
             <p class="mb-1">6. Unit yang tidak diambil dalam 30 hari sejak diberitahu selesai berada di luar tanggung jawab Justin Jaya.</p>
-            <p class="mb-1">7. Pengambilan unit wajib membawa nota ini. Pengambilan oleh orang lain wajib disertai nota dan konfirmasi dari nomor HP terdaftar.</p>
+            <p class="mb-1">7. Pengambilan unit wajib membawa nota ini. Pengambilan oleh orang lain wajib disertai nota dan surat kuasa dari pemilik.</p>
             <p class="mb-1">8. Dengan menyerahkan unit, pelanggan dianggap telah membaca dan menyetujui seluruh ketentuan ini.</p>
         </div>
 
