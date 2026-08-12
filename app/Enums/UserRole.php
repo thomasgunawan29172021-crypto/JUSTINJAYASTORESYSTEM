@@ -79,4 +79,31 @@ enum UserRole: string
         // Majuin tahap, follow up, isi hasil vendor — cuma tim retur + CEO.
         return in_array($this, [self::Ceo, self::Retur], true);
     }
+
+    /**
+     * Tahap yang terjadi DI CABANG — dikirim balik ke toko, siap diambil,
+     * sudah diambil, dan tukar di tempat (keputusan Thomas, Agustus 2026).
+     * Frontliner yang berhadapan sama pelanggan, jadi dia yang tahu kapan
+     * barang benar-benar sampai dan benar-benar diserahkan.
+     */
+    public function canHandoverWarrantyClaim(): bool
+    {
+        return $this->canProcessWarrantyClaim() || $this === self::Frontliner;
+    }
+
+    /**
+     * Admin chat yang mengabari pelanggan ("barang sudah kami terima",
+     * "sudah bisa diambil"). Cuma menandai sudah dikabari — tidak boleh
+     * memajukan tahap, karena dia tidak memegang barangnya.
+     */
+    public function canNotifyWarrantyCustomer(): bool
+    {
+        return $this->canProcessWarrantyClaim() || $this === self::AdminChat;
+    }
+
+    /** Jalur klaim ke supplier — menyangkut uang, jadi tim retur + CEO saja. */
+    public function canManageSupplierClaim(): bool
+    {
+        return $this->canProcessWarrantyClaim();
+    }
 }

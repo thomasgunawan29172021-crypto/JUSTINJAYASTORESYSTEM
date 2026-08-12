@@ -29,9 +29,11 @@
                 ['KPI',              'service.kpi', $canService],
             ]],
             'retur' => ['label' => 'Returan', 'tiles' => [
-                ['Klaim Retur',  'warranty.claims.index', $canInputRetur],
-                ['Klaim Baru',   'warranty.claims.create', $canInputRetur],
-                ['Vendor Retur', 'warranty.vendors.index', $canRetur],
+                ['Klaim Retur',    'warranty.claims.index', $canInputRetur],
+                ['Klaim Baru',     'warranty.claims.create', $canInputRetur],
+                // Jalur internal ke distributor — cuma tim retur + CEO.
+                ['Klaim Supplier', 'warranty.supplier.index', $u->canManageSupplierClaim()],
+                ['Vendor Retur',   'warranty.vendors.index', $canRetur],
             ]],
             'marketplace' => ['label' => 'Marketplace', 'tiles' => [
                 ['Tugas Saya',   'marketplace.tasks.index', $isCeo || $isPic],
@@ -103,6 +105,7 @@
             'marketplace.discounts.index'   => '💸',
             'warranty.claims.index'         => '🔁',
             'warranty.claims.create'        => '📥',
+            'warranty.supplier.index'       => '🏭',
             'warranty.vendors.index'        => '🚚',
             'attendance.index'              => '🕒',
             'leaves.index'                  => '🌿',
@@ -641,6 +644,88 @@
         f.addEventListener('input',  snapshot);
         f.addEventListener('change', snapshot);
         f.addEventListener('submit', function () { sessionStorage.removeItem(key); });
+    });
+})();
+</script>
+
+<script>
+/* ============ Kompres foto sebelum diupload ============
+   Pasang: data-compress di <input type="file" accept="image/*">.
+
+   MASALAHNYA: foto HP — apalagi PNG — gampang 5–15 MB, padahal PHP punya
+   upload_max_filesize (default 2M). File kegedean ditolak PHP DULUAN, jadi
+   Laravel cuma bisa bilang "photos.0 failed to upload" tanpa alasan jelas.
+
+   Di sini foto di-resize max 1600px + dijadiin JPEG 0.8 sebelum dikirim →
+   tinggal ratusan KB. Masih jelas buat bukti kondisi barang, dan upload dari
+   HP di toko jauh lebih cepat. */
+(function () {
+    var MAX_SIDE = 1600, QUALITY = 0.8;
+
+    function shrink(file) {
+        // GIF dilewat — animasinya ilang kalau digambar ulang ke canvas.
+        if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) return Promise.resolve(file);
+
+        return createImageBitmap(file, { imageOrientation: 'from-image' }).then(function (bmp) {
+            var scale = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
+            var c = document.createElement('canvas');
+            c.width  = Math.round(bmp.width  * scale);
+            c.height = Math.round(bmp.height * scale);
+
+            // Latar putih dulu: PNG transparan kalau langsung ke JPEG jadi hitam.
+            var ctx = c.getContext('2d');
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, c.width, c.height);
+            ctx.drawImage(bmp, 0, 0, c.width, c.height);
+            bmp.close();
+
+            return new Promise(function (res) {
+                c.toBlob(function (blob) {
+                    // Kalau hasilnya malah lebih gede (foto emang udah kecil), pakai aslinya.
+                    if (!blob || blob.size >= file.size) return res(file);
+                    res(new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }));
+                }, 'image/jpeg', QUALITY);
+            });
+        }).catch(function () { return file; }); // browser jadul → kirim apa adanya
+    }
+
+    document.querySelectorAll('input[type="file"][data-compress]').forEach(function (inp) {
+        if (typeof DataTransfer === 'undefined' || typeof createImageBitmap === 'undefined') return;
+
+        var form = inp.form, busy = false, pending = false;
+        var note = document.createElement('p');
+        note.className = 'text-[11px] text-emerald-600 font-semibold mt-1 hidden';
+        inp.insertAdjacentElement('afterend', note);
+
+        inp.addEventListener('change', function () {
+            var files = Array.prototype.slice.call(inp.files);
+            if (!files.length) return;
+
+            busy = true;
+            note.textContent = 'Mengecilkan foto…';
+            note.classList.remove('hidden');
+
+            Promise.all(files.map(shrink)).then(function (out) {
+                var dt = new DataTransfer();
+                out.forEach(function (f) { dt.items.add(f); });
+                inp.files = dt.files;
+
+                var mb = out.reduce(function (s, f) { return s + f.size; }, 0) / 1048576;
+                note.textContent = out.length + ' foto siap dikirim (' + mb.toFixed(1) + ' MB)';
+            }).catch(function () {
+                note.classList.add('hidden');
+            }).then(function () {
+                busy = false;
+                // Submit yang ketahan tadi dilepas sekarang.
+                if (pending) { pending = false; (form.requestSubmit ? form.requestSubmit() : form.submit()); }
+            });
+        });
+
+        // Kalau user nekan kirim pas kompres belum kelar, tahan dulu — jangan
+        // sampai file mentah yang kegedean yang ke-submit.
+        if (form) form.addEventListener('submit', function (e) {
+            if (busy) { e.preventDefault(); pending = true; }
+        });
     });
 })();
 </script>

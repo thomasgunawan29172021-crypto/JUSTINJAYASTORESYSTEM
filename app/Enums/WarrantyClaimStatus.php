@@ -33,19 +33,15 @@ enum WarrantyClaimStatus: string
      * URUT KETAT (keputusan Thomas): cuma maju +1, gak boleh loncat/mundur.
      * Beda dari TicketStatus servis yang bebas. Batal ditangani terpisah
      * (canCancel) karena aturannya beda: boleh dari beberapa tahap sekaligus.
+     *
+     * Urutannya SEKARANG tergantung alur (Agustus 2026): Robot/Olike melewati
+     * dua tahap supplier, tukar-di-tempat cuma dua tahap. Karena itu urutan
+     * pindah ke WarrantyClaimFlow::timeline() — satu tempat, dipakai bareng
+     * oleh mesin transisi, progress bar internal, dan lacak publik.
      */
-    public function next(): ?self
+    public function next(WarrantyClaimFlow $flow): ?self
     {
-        return match ($this) {
-            self::DiterimaCabang => self::DicekPusat,
-            self::DicekPusat     => self::DikirimVendor,
-            self::DikirimVendor  => self::DicekVendor,
-            self::DicekVendor    => self::HasilVendor,
-            self::HasilVendor    => self::DikirimBalik,
-            self::DikirimBalik   => self::SiapDiambil,
-            self::SiapDiambil    => self::Selesai,
-            self::Selesai, self::Batal => null,
-        };
+        return $flow->next($this);
     }
 
     /**
@@ -65,13 +61,14 @@ enum WarrantyClaimStatus: string
         return $this === self::Selesai || $this === self::Batal;
     }
 
-    /** Urutan buat progress bar di halaman lacak publik (Batal gak masuk garis). */
-    public static function timeline(): array
+    /**
+     * Tahap yang boleh dijalankan orang cabang (keputusan Thomas): frontliner
+     * yang berhadapan langsung sama pelanggan, jadi dia yang paling tahu kapan
+     * barang benar-benar sampai toko dan benar-benar diambil. Tahap tengah
+     * (kirim supplier, hasil pengecekan) tetap milik tim retur.
+     */
+    public function isBranchStage(): bool
     {
-        return [
-            self::DiterimaCabang, self::DicekPusat, self::DikirimVendor,
-            self::DicekVendor, self::HasilVendor, self::DikirimBalik,
-            self::SiapDiambil, self::Selesai,
-        ];
+        return in_array($this, [self::DikirimBalik, self::SiapDiambil, self::Selesai], true);
     }
 }

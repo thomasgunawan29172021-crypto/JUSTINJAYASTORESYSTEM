@@ -18,7 +18,7 @@
                 <p class="text-center mt-2 px-3 py-2 rounded-xl bg-slate-100 text-sm font-semibold text-slate-600">⛔ Klaim dibatalkan</p>
             @else
                 <p class="text-center mt-2 px-3 py-2 rounded-xl bg-emerald-50 text-sm font-semibold text-emerald-700">
-                    {{ $claim->status->label() }}
+                    {{ $claim->statusLabel() }}
                 </p>
                 @if($claim->outcome)
                     <p class="text-center mt-1 text-xs font-bold {{ $claim->outcome === 'diterima' ? 'text-emerald-600' : 'text-rose-600' }}">
@@ -30,7 +30,11 @@
 
         @if($claim->status->value !== 'batal')
             @php
-                $timeline = \App\Enums\WarrantyClaimStatus::timeline();
+                // Garis waktu ikut ALUR klaim ini. Pelanggan Robot/Olike tidak
+                // pernah melihat tahap supplier — barangnya memang tidak
+                // menunggu supplier, dan urusan klaim kita ke distributor bukan
+                // bagian dari perjalanan dia.
+                $timeline = $claim->flow->timeline();
                 $curIdx = array_search($claim->status, $timeline, true);
             @endphp
             <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm mb-4">
@@ -42,7 +46,7 @@
                                 {{ $i < $curIdx ? '✓' : $i + 1 }}
                             </span>
                             <span class="{{ $i === $curIdx ? 'font-bold' : ($i < $curIdx ? 'text-slate-600' : 'text-slate-400') }}">
-                                {{ $st->label() }}
+                                {{ $claim->flow->statusLabel($st) }}
                             </span>
                         </div>
                     @endforeach
@@ -53,13 +57,16 @@
         <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
             <p class="text-xs font-semibold text-slate-500 uppercase mb-3">Riwayat</p>
             <div class="space-y-2.5">
-                @foreach($claim->histories->sortByDesc('created_at') as $h)
+                {{-- HANYA transisi tahap + follow-up. Entri lain (catatan jalur
+                     klaim ke supplier, jejak admin chat ngabarin) urusan dalam
+                     kita — pelanggan tidak perlu, dan tidak boleh, melihatnya. --}}
+                @foreach($claim->histories->filter(fn ($h) => $h->to_status || $h->is_followup)->sortByDesc('created_at') as $h)
                     <div class="text-sm">
                         <p>
                             @if($h->is_followup)
                                 📣 <b>Telah di-follow up</b> oleh {{ $claim->branch->name }}
-                            @else
-                                {{ $h->to_status?->label() }}
+                            @elseif($h->to_status)
+                                {{ $claim->flow->statusLabel($h->to_status) }}
                             @endif
                         </p>
                         @if($h->note && ! $h->is_followup)<p class="text-xs text-slate-500">{{ $h->note }}</p>@endif

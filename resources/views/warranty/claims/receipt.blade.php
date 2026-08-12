@@ -76,7 +76,7 @@
             </tr>
             <tr>
                 <td class="text-slate-500 py-0.5 align-top">Kelengkapan</td>
-                <td class="align-top">: {{ collect($claim->completeness)->map(fn ($i) => ucwords(str_replace('_',' ',$i)))->join(', ') ?: '—' }}</td>
+                <td class="align-top">: {{ implode(', ', $claim->completenessLabels()) ?: '—' }}</td>
                 <td class="text-slate-500 align-top">Cabang</td><td class="align-top">: {{ $claim->branch->code }}</td>
             </tr>
             <tr>

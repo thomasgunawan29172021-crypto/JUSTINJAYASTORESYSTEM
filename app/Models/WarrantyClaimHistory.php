@@ -10,12 +10,13 @@ class WarrantyClaimHistory extends Model
 {
     public $timestamps = false;
 
-    protected $fillable = ['claim_id', 'from_status', 'to_status', 'is_followup', 'user_id', 'note', 'created_at'];
+    protected $fillable = ['claim_id', 'from_status', 'to_status', 'is_followup', 'is_notify', 'user_id', 'note', 'created_at'];
 
     protected $casts = [
         'from_status' => WarrantyClaimStatus::class,
         'to_status'   => WarrantyClaimStatus::class,
         'is_followup' => 'boolean',
+        'is_notify'   => 'boolean',
         'created_at'  => 'datetime',
     ];
 

@@ -23,6 +23,7 @@ use App\Http\Controllers\Service\KpiController;
 use App\Http\Controllers\Service\TicketController;
 use App\Http\Controllers\Service\TrackingController;
 use App\Http\Controllers\UserManagementController;
+use App\Http\Controllers\Warranty\SupplierShipmentController;
 use App\Http\Controllers\Warranty\WarrantyClaimController;
 use App\Http\Controllers\Warranty\WarrantyTrackingController;
 use App\Http\Controllers\Warranty\WarrantyVendorController;
@@ -134,6 +135,20 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('/claims/{claim}/advance',  [WarrantyClaimController::class, 'advance'])->name('claims.advance');
         Route::post('/claims/{claim}/cancel',   [WarrantyClaimController::class, 'cancel'])->name('claims.cancel');
         Route::post('/claims/{claim}/followup', [WarrantyClaimController::class, 'followUp'])->name('claims.followup');
+        // Nasib klaim ke supplier (antre / relakan) + jejak admin chat ngabarin.
+        Route::post('/claims/{claim}/supplier', [WarrantyClaimController::class, 'supplierDecision'])->name('claims.supplier');
+        Route::post('/claims/{claim}/notify',   [WarrantyClaimController::class, 'notify'])->name('claims.notify');
+
+        // ---- Klaim ke supplier: jalur INTERNAL, tidak pernah masuk lacak publik ----
+        Route::get('/supplier',                    [SupplierShipmentController::class, 'index'])->name('supplier.index');
+        Route::post('/supplier',                   [SupplierShipmentController::class, 'store'])->name('supplier.store');
+        Route::get('/supplier/{shipment}',         [SupplierShipmentController::class, 'show'])->name('supplier.show');
+        Route::get('/supplier/{shipment}/receipt', [SupplierShipmentController::class, 'receipt'])->name('supplier.receipt');
+        Route::post('/supplier/{shipment}/advance',  [SupplierShipmentController::class, 'advance'])->name('supplier.advance');
+        Route::post('/supplier/{shipment}/followup', [SupplierShipmentController::class, 'followUp'])->name('supplier.followup');
+        Route::delete('/supplier/{shipment}/items/{item}',        [SupplierShipmentController::class, 'removeItem'])->name('supplier.items.remove');
+        Route::post('/supplier/{shipment}/items/{item}/resolve',  [SupplierShipmentController::class, 'resolveItem'])->name('supplier.items.resolve');
+        Route::post('/supplier/{shipment}/items/{item}/arrived',  [SupplierShipmentController::class, 'itemArrived'])->name('supplier.items.arrived');
 
         Route::get('/vendors',             [WarrantyVendorController::class, 'index'])->name('vendors.index');
         Route::post('/vendors',            [WarrantyVendorController::class, 'store'])->name('vendors.store');

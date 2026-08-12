@@ -54,11 +54,16 @@
                                 @elseif($c->status->value === 'batal') bg-slate-200 text-slate-600
                                 @elseif($c->outcome === 'ditolak') bg-rose-100 text-rose-800
                                 @else bg-sky-100 text-sky-800 @endif">
-                                {{ $c->status->label() }}
+                                {{ $c->statusLabel() }}
                             </span>
                             @if($c->outcome)
                                 <span class="block mt-0.5 text-[10px] font-bold {{ $c->outcome === 'diterima' ? 'text-emerald-600' : 'text-rose-600' }}">
                                     {{ strtoupper($c->outcome) }} vendor
+                                </span>
+                            @endif
+                            @if($c->flow !== \App\Enums\WarrantyClaimFlow::KirimDulu)
+                                <span class="block mt-0.5 text-[10px] text-slate-400">
+                                    {{ $c->flow === \App\Enums\WarrantyClaimFlow::TukarTempat ? 'tukar di tempat' : 'ganti dulu' }}
                                 </span>
                             @endif
                         </td>
