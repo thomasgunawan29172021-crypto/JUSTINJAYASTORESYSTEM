@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\WarrantyClaimFlow;
 use App\Enums\WarrantyClaimStatus;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -41,7 +42,6 @@ class WarrantyClaim extends Model
 
     protected $casts = [
         'status'              => WarrantyClaimStatus::class,
-        'flow'                => WarrantyClaimFlow::class,
         'completeness'        => 'array',
         'purchased_at'        => 'date',
         'last_followed_up_at' => 'datetime',
@@ -52,6 +52,25 @@ class WarrantyClaim extends Model
         'supplier_skipped_at' => 'datetime',
         'last_notified_at'    => 'datetime',
     ];
+
+    /**
+     * Alur SELALU terisi, bahkan kalau kolomnya kosong atau berisi nilai yang
+     * tidak dikenal. Sengaja accessor, bukan cast enum biasa: dengan cast,
+     * satu baris ber-flow null bikin seluruh DAFTAR klaim mati 500 — satu data
+     * rusak menjatuhkan halaman yang menampilkan ratusan data sehat.
+     *
+     * Jatuh-baliknya ke KirimDulu, alur paling aman: barang tetap dikirim ke
+     * supplier dulu, bukan langsung ditalangi.
+     */
+    protected function flow(): Attribute
+    {
+        return Attribute::make(
+            get: fn ($value) => $value instanceof WarrantyClaimFlow
+                ? $value
+                : (WarrantyClaimFlow::tryFrom((string) $value) ?? WarrantyClaimFlow::KirimDulu),
+            set: fn ($value) => $value instanceof WarrantyClaimFlow ? $value->value : $value,
+        );
+    }
 
     /* -------------------- Relasi -------------------- */
 
