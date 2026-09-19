@@ -24,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'finance' => \App\Http\Middleware\EnsureUserCanAccessFinance::class,
             'sosmed'  => \App\Http\Middleware\EnsureUserCanManageSosmed::class,
             'service' => \App\Http\Middleware\EnsureUserCanAccessService::class,
+            'crm' => \App\Http\Middleware\EnsureCrmAccess::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

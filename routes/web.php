@@ -29,6 +29,8 @@ use App\Http\Controllers\Warranty\WarrantyTrackingController;
 use App\Http\Controllers\Warranty\WarrantyVendorController;
 use App\Http\Controllers\WorkScheduleController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Crm\CustomerController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -87,6 +89,17 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     
+    // ---------------- CRM — PELANGGAN ---------------- (pindah ke sini)
+    Route::middleware('crm')->prefix('crm')->name('crm.')->group(function () {
+        Route::get('/customers',              [CustomerController::class, 'index'])->name('customers.index');
+        Route::get('/customers/create',       [CustomerController::class, 'create'])->name('customers.create');
+        Route::post('/customers',             [CustomerController::class, 'store'])->name('customers.store');
+        Route::get('/customers/{customer}',   [CustomerController::class, 'show'])->name('customers.show');
+        Route::get('/customers/{customer}/edit', [CustomerController::class, 'edit'])->name('customers.edit');
+        Route::put('/customers/{customer}',   [CustomerController::class, 'update'])->name('customers.update');
+        Route::delete('/customers/{customer}', [CustomerController::class, 'destroy'])->name('customers.destroy');
+    });
+
     // ---------------- ABSENSI (semua staf) ----------------
     Route::get('/attendance',            [AttendanceController::class, 'index'])->name('attendance.index');
     Route::post('/attendance/clock-in',  [AttendanceController::class, 'clockIn'])->name('attendance.clockin');
