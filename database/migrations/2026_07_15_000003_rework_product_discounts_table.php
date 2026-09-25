@@ -31,11 +31,7 @@ return new class extends Migration
 
         // 3) Data lama date-only: "berakhir 15 Jul" = berlaku sampai AKHIR hari itu.
         //    Tanpa ini semua diskon lama mendadak berakhir jam 00:00.
-        if (DB::getDriverName() === 'sqlite') {
-            DB::statement("UPDATE product_discounts SET ends_at = datetime(datetime(ends_at), '+1 day', '-1 second')");
-        } else {
-            DB::statement("UPDATE product_discounts SET ends_at = DATE_ADD(DATE(ends_at), INTERVAL '23:59:59' HOUR_SECOND)");
-        }
+        DB::statement("UPDATE product_discounts SET ends_at = DATE_ADD(DATE(ends_at), INTERVAL '23:59:59' HOUR_SECOND)");
 
         Schema::table('product_discounts', function (Blueprint $table) {
             $table->dropConstrainedForeignId('product_id');

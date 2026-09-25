@@ -1,4 +1,0 @@
-<?php
-namespace App\Console\Commands;
-use App\Models\{Purchase,Reminder};use Illuminate\Console\Command;
-class GenerateReminders extends Command {protected $signature='reminders:generate';protected $description='Buat reminder CRM yang jatuh tempo';public function handle():int{$created=0;$today=today();foreach(Reminder::STAGE_DAYS as $stage=>$days){$since=$today->copy()->subDays($days);Purchase::whereDate('purchased_at','<=',$since)->whereDoesntHave('reminders',fn($q)=>$q->where('stage',$stage))->chunkById(200,function($ps)use($stage,$days,&$created){foreach($ps as $p){$exists=Reminder::where('purchase_id',$p->id)->where('stage',$stage)->exists();if(!$exists){Reminder::create(['purchase_id'=>$p->id,'customer_id'=>$p->customer_id,'stage'=>$stage,'due_date'=>$p->purchased_at->copy()->addDays($days),'status'=>'pending']);$created++;}}});} $this->info("Reminder baru dibuat: {$created}");return self::SUCCESS;}}

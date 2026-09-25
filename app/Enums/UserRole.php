@@ -66,11 +66,6 @@ enum UserRole: string
         ], true);
     }
 
-    public function canAccessCrm(): bool
-    {
-        return in_array($this, [self::Ceo, self::KepalaToko, self::Frontliner, self::AdminChat], true);
-    }
-
     /** Modul klaim garansi/retur: input klaim = frontliner dkk; proses = tim retur. */
     public function canCreateWarrantyClaim(): bool
     {
