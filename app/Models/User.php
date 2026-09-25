@@ -103,6 +103,7 @@ class User extends Authenticatable
     public function isCeo(): bool                   { return $this->role->isCeo(); }
     public function isManager(): bool               { return $this->anyRole(fn ($r) => $r->isManager()); }
     public function canAccessService(): bool        { return $this->anyRole(fn ($r) => $r->canAccessService()); }
+    public function canAccessCrm(): bool             { return $this->anyRole(fn ($r) => $r->canAccessCrm()); }
     public function canAccessFinance(): bool        { return $this->anyRole(fn ($r) => $r->canAccessFinance()); }
     public function canCreateWarrantyClaim(): bool  { return $this->anyRole(fn ($r) => $r->canCreateWarrantyClaim()); }
     public function canProcessWarrantyClaim(): bool { return $this->anyRole(fn ($r) => $r->canProcessWarrantyClaim()); }

@@ -17,6 +17,7 @@
         $isManager = $u->isManager();
         $isFinance = $u->canAccessFinance();
         $canService = $u->canAccessService();
+        $canCrm    = $u->canAccessCrm();
         $isPic     = $u->brands()->exists();
         $canRetur   = $u->canProcessWarrantyClaim();
         $canInputRetur = $u->canCreateWarrantyClaim() || $canRetur;
@@ -28,6 +29,12 @@
                 ['Dashboard Servis', 'service.dashboard', $canService],
                 ['Tiket',            'service.tickets.index', $canService],
                 ['KPI',              'service.kpi', $canService],
+            ]],
+            'crm' => ['label' => 'CRM Pelanggan', 'tiles' => [
+                ['Data Pelanggan', 'crm.customers.index', $canCrm],
+                ['Pelanggan Baru', 'crm.customers.create', $canCrm],
+                ['Reminder Hari Ini', 'crm.reminders.index', $canCrm],
+                ['Laporan CRM', 'crm.dashboard', $isManager],
             ]],
             'retur' => ['label' => 'Returan', 'tiles' => [
                 ['Klaim Retur',    'warranty.claims.index', $canInputRetur],
@@ -88,6 +95,7 @@
         $icons = [
             'dashboard'   => '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
             'servis'      => '<path d="M14.5 6.5a3.5 3.5 0 0 0-4.7 4.7L4 17v3h3l5.8-5.8a3.5 3.5 0 0 0 4.7-4.7l-2.2 2.2-2-2 2.2-2.2z"/>',
+            'crm'         => '<circle cx="12" cy="8" r="3"/><path d="M5 21a7 7 0 0 1 14 0"/><path d="M3 12h3M18 12h3"/>',
             'marketplace' => '<path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/>',
             'retur'       => '<path d="M3 9l4-5h10l4 5"/><path d="M3 9h18v11H3z"/><path d="M12 13v4M10 15l2 2 2-2"/>',
             'sosmed'      => '<rect x="2.5" y="5" width="15" height="14" rx="3"/><path d="M17.5 10.5 21.5 8v8l-4-2.5"/><circle cx="10" cy="12" r="2.5"/>',
@@ -103,6 +111,10 @@
             'service.dashboard'             => '📊',
             'service.tickets.index'         => '🎫',
             'service.kpi'                   => '🎯',
+            'crm.customers.index'          => '👤',
+            'crm.customers.create'         => '➕',
+            'crm.reminders.index'          => '🔔',
+            'crm.dashboard'                => '📊',
             'marketplace.tasks.index'       => '✅',
             'marketplace.dashboard'         => '🛒',
             'marketplace.products.index'    => '📦',

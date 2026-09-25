@@ -14,3 +14,4 @@ Schedule::command('leaves:expire')->dailyAt('00:15');
 Schedule::command('marketplace:purge-trash')->dailyAt('02:00');
 Schedule::command('leaves:purge-trash')->dailyAt('02:30');
 Schedule::command('sosmed:freeze-stale')->dailyAt('01:00');
+Schedule::command('reminders:generate')->dailyAt('06:00');
