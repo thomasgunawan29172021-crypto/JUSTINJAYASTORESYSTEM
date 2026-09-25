@@ -1,0 +1,10 @@
+<?php
+namespace App\Models;
+use Illuminate\Database\Eloquent\Model;use Illuminate\Database\Eloquent\Relations\{BelongsTo,HasMany};use Illuminate\Database\Eloquent\SoftDeletes;use Illuminate\Support\Facades\DB;
+class Customer extends Model {use SoftDeletes;protected $fillable=['name','address','source','branch_id','notes'];
+ public function branch():BelongsTo{return $this->belongsTo(Branch::class);} public function creator():BelongsTo{return $this->belongsTo(User::class,'created_by');} public function contacts():HasMany{return $this->hasMany(CustomerContact::class);} public function purchases():HasMany{return $this->hasMany(Purchase::class);} public function reminders():HasMany{return $this->hasMany(Reminder::class);} public function histories():HasMany{return $this->hasMany(CustomerHistory::class)->latest('created_at');}
+ public function primaryContact():?CustomerContact{return $this->contacts->firstWhere('is_primary',true)??$this->contacts->first();}
+ public static function normalizePhone(string $phone):string{$d=preg_replace('/\D+/','',$phone);if(str_starts_with($d,'0'))$d='62'.substr($d,1);elseif(str_starts_with($d,'8'))$d='62'.$d;return $d;}
+ public static function register(array $attributes,array $contacts,User $creator):self{return DB::transaction(function()use($attributes,$contacts,$creator){$c=new self($attributes);$c->created_by=$creator->id;$c->save();foreach($contacts as $x){if(in_array($x['type'],['phone','whatsapp'],true))$x['value']=self::normalizePhone($x['value']);$c->contacts()->create($x);}$c->histories()->create(['user_id'=>$creator->id,'action'=>'created','note'=>'Pelanggan baru didaftarkan','created_at'=>now()]);return $c;});}
+ public function updateInfo(array $attributes,User $editor):void{DB::transaction(function()use($attributes,$editor){$before=$this->only(array_keys($attributes));$this->fill($attributes)->save();$this->histories()->create(['user_id'=>$editor->id,'action'=>'updated','changes'=>['before'=>$before,'after'=>$this->only(array_keys($attributes))],'created_at'=>now()]);});}
+}

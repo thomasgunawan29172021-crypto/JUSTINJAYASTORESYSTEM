@@ -29,6 +29,7 @@ use App\Http\Controllers\Warranty\WarrantyTrackingController;
 use App\Http\Controllers\Warranty\WarrantyVendorController;
 use App\Http\Controllers\WorkScheduleController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Crm\{CustomerController,PurchaseController,ReminderController,DashboardController as CrmDashboardController};
 
 /*
 |--------------------------------------------------------------------------
@@ -86,6 +87,22 @@ Route::get('/', function () {
 Route::middleware(['auth', 'active'])->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    Route::middleware('crm')->prefix('crm')->name('crm.')->group(function () {
+        Route::get('/customers', [CustomerController::class, 'index'])->name('customers.index');
+        Route::get('/customers/create', [CustomerController::class, 'create'])->name('customers.create');
+        Route::post('/customers', [CustomerController::class, 'store'])->name('customers.store');
+        Route::get('/customers/{customer}/purchases/create', [PurchaseController::class, 'create'])->name('purchases.create');
+        Route::post('/customers/{customer}/purchases', [PurchaseController::class, 'store'])->name('purchases.store');
+        Route::get('/customers/{customer}/edit', [CustomerController::class, 'edit'])->name('customers.edit');
+        Route::get('/customers/{customer}', [CustomerController::class, 'show'])->name('customers.show');
+        Route::put('/customers/{customer}', [CustomerController::class, 'update'])->name('customers.update');
+        Route::delete('/customers/{customer}', [CustomerController::class, 'destroy'])->name('customers.destroy');
+        Route::get('/purchases/{purchase}', [PurchaseController::class, 'show'])->name('purchases.show');
+        Route::get('/reminders', [ReminderController::class, 'index'])->name('reminders.index');
+        Route::post('/reminders/{reminder}/status', [ReminderController::class, 'updateStatus'])->name('reminders.status');
+        Route::get('/dashboard', [CrmDashboardController::class, 'index'])->middleware('manager')->name('dashboard');
+    });
     
     // ---------------- ABSENSI (semua staf) ----------------
     Route::get('/attendance',            [AttendanceController::class, 'index'])->name('attendance.index');
