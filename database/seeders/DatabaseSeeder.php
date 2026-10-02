@@ -9,7 +9,7 @@ use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
-class ProductionSeeder extends Seeder
+class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
@@ -43,6 +43,18 @@ class ProductionSeeder extends Seeder
         ] as [$name, $domains]) {
             Platform::updateOrCreate(['name' => $name], ['domains' => $domains]);
         }
+
+        // ---- Akun admin fallback untuk setup awal ----
+        User::updateOrCreate(
+            ['email' => 'admin@admin'],
+            [
+                'name'      => 'Admin',
+                'password'  => Hash::make('admin@admin'),
+                'role'      => UserRole::Ceo,
+                'branch_id' => $utama->id,
+                'is_active' => true,
+            ]
+        );
 
         // ---- Akun CEO Thomas ----
         // Password diambil dari ENV, BUKAN hardcode. Set CEO_PASSWORD di dashboard Laravel Cloud.

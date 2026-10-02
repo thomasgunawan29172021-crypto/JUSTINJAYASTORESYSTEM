@@ -91,6 +91,12 @@ Route::middleware(['auth', 'active'])->group(function () {
     
     // ---------------- CRM — PELANGGAN ---------------- (pindah ke sini)
     Route::middleware('crm')->prefix('crm')->name('crm.')->group(function () {
+        Route::middleware('crm.waiting-list')->group(function () {
+            Route::get('/waiting-list', [\App\Http\Controllers\Crm\WaitingListController::class, 'index'])->name('waiting-list.index');
+            Route::get('/waiting-list/create', [\App\Http\Controllers\Crm\WaitingListController::class, 'create'])->name('waiting-list.create');
+            Route::post('/waiting-list', [\App\Http\Controllers\Crm\WaitingListController::class, 'store'])->name('waiting-list.store');
+            Route::patch('/waiting-list/{order}/status', [\App\Http\Controllers\Crm\WaitingListController::class, 'status'])->name('waiting-list.status');
+        });
         Route::get('/customers',              [CustomerController::class, 'index'])->name('customers.index');
         Route::get('/customers/create',       [CustomerController::class, 'create'])->name('customers.create');
         Route::post('/customers',             [CustomerController::class, 'store'])->name('customers.store');

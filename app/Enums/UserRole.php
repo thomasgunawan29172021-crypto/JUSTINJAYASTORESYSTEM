@@ -4,6 +4,7 @@ namespace App\Enums;
 
 enum UserRole: string
 {
+    case Crm = 'crm';
     case Ceo            = 'ceo';
     case KepalaToko     = 'kepala_toko';
     case KepalaKeuangan = 'kepala_keuangan';
@@ -20,6 +21,7 @@ enum UserRole: string
     public function label(): string
     {
         return match ($this) {
+            self::Crm => 'CRM',
             self::Ceo            => 'CEO',
             self::KepalaToko     => 'Kepala Toko',
             self::KepalaKeuangan => 'Kepala Keuangan',

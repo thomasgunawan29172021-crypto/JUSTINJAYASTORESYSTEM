@@ -25,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'sosmed'  => \App\Http\Middleware\EnsureUserCanManageSosmed::class,
             'service' => \App\Http\Middleware\EnsureUserCanAccessService::class,
             'crm' => \App\Http\Middleware\EnsureCrmAccess::class,
+            'crm.waiting-list' => \App\Http\Middleware\EnsureUserCanManageWaitingList::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

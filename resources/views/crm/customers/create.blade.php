@@ -95,7 +95,7 @@
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Cabang <span class="text-rose-500">*</span></label>
 
-                        @if($user->isManager())
+                        @if($user->isCeo() || $user->hasRole(\App\Enums\UserRole::Crm))
                             <select name="branch_id" required
                                     class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white @error('branch_id') border-rose-400 @enderror">
                                 <option value="">— Pilih cabang —</option>
@@ -105,7 +105,7 @@
                             </select>
                         @else
                             {{-- Non-manager: dikunci ke cabang sendiri, gak bisa salah pilih --}}
-                            <input type="text" value="{{ $user->branch->name }}" disabled
+                            <input type="text" value="{{ $user->branch?->name }}" disabled
                                 class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
                             <input type="hidden" name="branch_id" value="{{ $user->branch_id }}">
                         @endif

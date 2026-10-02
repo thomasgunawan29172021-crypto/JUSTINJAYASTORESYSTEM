@@ -87,6 +87,16 @@ class User extends Authenticatable
         return in_array($role, $this->allRoles(), true);
     }
 
+    public function canAccessCrm(): bool
+    {
+        return $this->isCeo() || $this->anyRole(fn ($role) => in_array($role, [UserRole::Crm, UserRole::KepalaToko, UserRole::Frontliner, UserRole::AdminChat], true));
+    }
+
+    public function canManageWaitingList(): bool
+    {
+        return $this->isCeo() || $this->hasRole(UserRole::Crm);
+    }
+
     /** true kalau SALAH SATU role yang dipegang lolos pengecekan $check. */
     protected function anyRole(callable $check): bool
     {

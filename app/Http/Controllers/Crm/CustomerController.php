@@ -18,11 +18,11 @@ class CustomerController extends Controller
 
         $customers = Customer::query()
             ->with(['contacts', 'branch'])
-            ->when(! $user->isCeo(), fn ($q) => $q->where('branch_id', $user->branch_id))
+            ->when(! $user->isCeo() && ! $user->hasRole(\App\Enums\UserRole::Crm), fn ($q) => $q->where('branch_id', $user->branch_id))
             ->when($request->filled('q'), function ($q) use ($request) {
                 $term = $request->string('q');
-                $q->where('name', 'like', "%{$term}%")
-                    ->orWhereHas('contacts', fn ($c) => $c->where('value', 'like', "%{$term}%"));
+                $q->where(fn ($search) => $search->where('name', 'like', "%{$term}%")
+                    ->orWhereHas('contacts', fn ($c) => $c->where('value', 'like', "%{$term}%")));
             })
             ->latest()
             ->paginate(20)
@@ -60,7 +60,7 @@ class CustomerController extends Controller
             'confirm_create'  => ['nullable', 'boolean'],
         ]);
 
-        if (! $request->user()->isManager()) {
+        if (! $request->user()->isCeo() && ! $request->user()->hasRole(\App\Enums\UserRole::Crm)) {
             $data['branch_id'] = $request->user()->branch_id;
         }
 
@@ -108,8 +108,9 @@ class CustomerController extends Controller
             ->with('ok', "Pelanggan {$customer->name} berhasil didaftarkan.");
     }
 
-    public function show(Customer $customer)
+    public function show(Request $request, Customer $customer)
     {
+        $this->authorizeCustomer($request, $customer);
         $customer->load([
             'contacts', 'branch', 'creator',
             // 'purchases' => fn ($q) => $q->latest('purchased_at')->with('items'),  // aktifkan setelah Step 2
@@ -122,7 +123,8 @@ class CustomerController extends Controller
 
     public function edit(Request $request, Customer $customer)
     {
-        $branches = Branch::all();
+        $this->authorizeCustomer($request, $customer);
+        $branches = Branch::query()->when(! $request->user()->isCeo() && ! $request->user()->hasRole(\App\Enums\UserRole::Crm), fn ($q) => $q->whereKey($request->user()->branch_id))->get();
         $user = $request->user();
 
         return view('crm.customers.edit', compact('customer', 'branches', 'user'));
@@ -130,6 +132,7 @@ class CustomerController extends Controller
     
     public function update(Request $request, Customer $customer)
     {
+        $this->authorizeCustomer($request, $customer);
         $data = $request->validate([
             'name'      => ['required', 'string', 'max:100'],
             'address'   => ['nullable', 'string', 'max:255'],
@@ -138,7 +141,7 @@ class CustomerController extends Controller
             'notes'     => ['nullable', 'string'],
         ]);
 
-        if (! $request->user()->isManager()) {
+        if (! $request->user()->isCeo() && ! $request->user()->hasRole(\App\Enums\UserRole::Crm)) {
             $data['branch_id'] = $request->user()->branch_id;
         }
 
@@ -149,6 +152,7 @@ class CustomerController extends Controller
 
     public function destroy(Request $request, Customer $customer)
     {
+        $this->authorizeCustomer($request, $customer);
         $customer->histories()->create([
             'user_id'    => $request->user()->id,
             'action'     => 'deleted',
@@ -157,5 +161,10 @@ class CustomerController extends Controller
         $customer->delete(); // soft delete
 
         return redirect()->route('crm.customers.index')->with('ok', 'Pelanggan dihapus (masih bisa dipulihkan lewat trash).');
+    }
+
+    private function authorizeCustomer(Request $request, Customer $customer): void
+    {
+        abort_unless($request->user()->isCeo() || $request->user()->hasRole(\App\Enums\UserRole::Crm) || $customer->branch_id === $request->user()->branch_id, 403);
     }
 }

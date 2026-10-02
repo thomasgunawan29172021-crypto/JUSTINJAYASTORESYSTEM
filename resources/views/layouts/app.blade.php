@@ -20,7 +20,10 @@
         $isPic     = $u->brands()->exists();
         $canRetur   = $u->canProcessWarrantyClaim();
         $canInputRetur = $u->canCreateWarrantyClaim() || $canRetur;
-        $canCrm = $isCeo || $isManager || in_array($u->role->value, ['frontliner', 'admin_chat'], true);
+        $canCrm = $u->canAccessCrm();
+        $canManageWaitingList = $u->canManageWaitingList();
+        $waitingCount = $canManageWaitingList && \Illuminate\Support\Facades\Schema::hasTable('waiting_items')
+            ? \App\Models\WaitingItem::where('status', '!=', 'purchased')->whereHas('order', fn ($q) => $q->visibleTo($u))->count() : 0;
 
         // [label, route name, boleh diakses?]
         $modules = [
@@ -39,6 +42,7 @@
             'crm' => ['label' => 'CRM', 'tiles' => [
                 ['Pelanggan',    'crm.customers.index',  $canCrm],
                 ['Pelanggan Baru', 'crm.customers.create', $canCrm],
+                ['Pesanan Barang ('.$waitingCount.')', 'crm.waiting-list.index', $canManageWaitingList],
             ]],
             'marketplace' => ['label' => 'Marketplace', 'tiles' => [
                 ['Tugas Saya',   'marketplace.tasks.index', $isCeo || $isPic],

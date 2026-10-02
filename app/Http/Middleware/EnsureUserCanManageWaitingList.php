@@ -6,19 +6,11 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-class EnsureCrmAccess
+class EnsureUserCanManageWaitingList
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $user = $request->user();
-
-        if (!$user) {
-            return redirect()->route('login');
-        }
-
-        if (! $user->canAccessCrm()) {
-            abort(403, 'Akses ditolak.');
-        }
+        abort_unless($request->user()?->canManageWaitingList(), 403, 'Akses ditolak.');
 
         return $next($request);
     }

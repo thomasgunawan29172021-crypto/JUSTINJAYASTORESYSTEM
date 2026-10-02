@@ -16,6 +16,9 @@
             </p>
         </div>
         <div class="flex gap-2">
+            @if(auth()->user()->canManageWaitingList())
+                <a href="{{ route('crm.waiting-list.create', ['customer_id' => $customer->id]) }}" class="rounded-xl bg-emerald-600 text-white text-sm font-semibold px-4 py-2">+ Waiting List</a>
+            @endif
             <a href="{{ route('crm.customers.edit', $customer) }}"
                class="rounded-xl border border-slate-300 text-slate-700 text-sm font-semibold px-4 py-2 hover:bg-slate-50">
                 Edit
@@ -201,6 +204,8 @@
                                                 'created' => 'mendaftarkan pelanggan',
                                                 'updated' => 'mengubah data',
                                                 'deleted' => 'menghapus pelanggan',
+                                                'waiting_created' => 'mencatat waiting list',
+                                                'waiting_status' => 'mengubah status waiting list',
                                                 default   => $h->action,
                                             };
                                         @endphp
@@ -220,6 +225,9 @@
                                             </li>
                                         @endforeach
                                     </ul>
+                                @endif
+                                @if($h->changes && $h->action === 'waiting_status')
+                                    <p class="text-xs text-slate-500">{{ \App\Models\WaitingItem::STATUSES[$h->changes['before']] ?? '' }} → {{ \App\Models\WaitingItem::STATUSES[$h->changes['after']] ?? '' }}</p>
                                 @endif
                             </div>
                             <span class="text-[11px] text-slate-400 whitespace-nowrap flex-shrink-0">
