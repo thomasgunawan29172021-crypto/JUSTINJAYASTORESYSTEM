@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 
@@ -12,7 +13,7 @@ class Customer extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['name', 'address', 'source', 'branch_id', 'notes'];
+    protected $fillable = ['name', 'address', 'city', 'source', 'branch_id', 'notes'];
 
     public function branch(): BelongsTo
     {
@@ -32,6 +33,11 @@ class Customer extends Model
     public function purchases(): HasMany
     {
         return $this->hasMany(Purchase::class);
+    }
+
+    public function latestPurchase(): HasOne
+    {
+        return $this->hasOne(Purchase::class)->latestOfMany('purchased_at');
     }
 
     public function reminders(): HasMany

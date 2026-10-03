@@ -25,3 +25,6 @@
     </div>@endif
 </div>
 @endsection
+@push('scripts')
+<style>@media(max-width:767px){.content-wrap table{min-width:900px}}</style>
+@endpush

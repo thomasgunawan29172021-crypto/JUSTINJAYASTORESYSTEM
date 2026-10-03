@@ -31,6 +31,12 @@
                 </div>
 
                 <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Kota / area</label>
+                    <input type="text" name="city" maxlength="100" value="{{ old('city', $customer->city) }}" placeholder="Contoh: Palembang"
+                           class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                </div>
+
+                <div>
                     <label class="block text-xs font-semibold text-slate-600 mb-1">Sumber Pelanggan</label>
                     <select name="source" id="source-select"
                             class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
@@ -67,7 +73,7 @@
                 </div>
             </div>
 
-            <div class="flex gap-3">
+            <div class="flex flex-col gap-3 sm:flex-row">
                 <button type="submit"
                         class="rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-bold px-6 py-2.5">
                     Simpan Perubahan

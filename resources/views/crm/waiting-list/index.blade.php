@@ -50,3 +50,6 @@
     {{ $orders->links() }}
 </div>
 @endsection
+@push('scripts')
+<style>@media(max-width:767px){.content-wrap table{min-width:700px}}</style>
+@endpush

@@ -15,7 +15,7 @@
                 @endif
             </p>
         </div>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
             @if(auth()->user()->canManageSales())
                 <a href="{{ route('crm.sales.create', ['customer_id' => $customer->id]) }}" class="rounded-xl bg-sky-600 text-white text-sm font-semibold px-4 py-2">+ Penjualan</a>
             @endif
@@ -48,6 +48,10 @@
                     <div>
                         <dt class="text-xs text-slate-400 uppercase">Alamat</dt>
                         <dd class="font-medium">{{ $customer->address ?: '—' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs text-slate-400 uppercase">Kota / area</dt>
+                        <dd class="font-medium">{{ $customer->city ?: '—' }}</dd>
                     </div>
                     <div>
                         <dt class="text-xs text-slate-400 uppercase">Catatan</dt>
@@ -93,7 +97,7 @@
                     @if(auth()->user()->canManageSales())<a href="{{ route('crm.sales.create', ['customer_id' => $customer->id]) }}" class="text-sm font-semibold text-emerald-700">+ Tambah</a>@endif
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
+                    <table class="w-full min-w-[680px] text-sm">
                         <thead class="text-xs text-slate-500 uppercase bg-slate-50">
                             <tr>
                                 <th class="px-4 py-2 text-left">Tanggal</th>
@@ -136,7 +140,7 @@
                     <h2 class="font-bold text-slate-700">Reminder</h2>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
+                    <table class="w-full min-w-[620px] text-sm">
                         <thead class="text-xs text-slate-500 uppercase bg-slate-50">
                             <tr>
                                 <th class="px-4 py-2 text-left">Jadwal</th>

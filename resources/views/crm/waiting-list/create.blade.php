@@ -22,7 +22,7 @@
     <h1 class="text-2xl font-bold">Catat kebutuhan pelanggan</h1>
     <p class="text-sm text-slate-500">Pilih pelanggan lama atau isi nama dan nomor baru. Harga adalah harga per unit yang dicatat saat pemesanan.</p>
     @if($errors->any())<div class="rounded-xl bg-rose-50 p-4 text-rose-700" role="alert">@foreach($errors->all() as $error)<p>{{ $error }}</p>@endforeach</div>@endif
-    <form method="GET" class="flex gap-2">
+    <form method="GET" class="flex flex-col gap-2 sm:flex-row">
         <input aria-label="Cari pelanggan lama" name="customer_q" value="{{ request('customer_q') }}" placeholder="Cari nama / nomor pelanggan lama" class="border rounded-lg p-2 flex-1">
         <button class="border rounded-lg px-4">Cari pelanggan</button>
     </form>
@@ -63,7 +63,7 @@
             <button type="button" id="add-item" class="text-emerald-700 font-semibold">+ Tambah produk</button>
             <label class="block">Catatan<textarea name="notes" maxlength="2000" class="block border rounded-lg p-2 w-full" rows="3">{{ old('notes') }}</textarea></label>
         </div>
-        <button class="rounded-lg bg-emerald-600 text-white px-5 py-3 font-bold">Simpan pesanan</button>
+        <button class="w-full rounded-lg bg-emerald-600 text-white px-5 py-3 font-bold sm:w-auto">Simpan pesanan</button>
     </form>
     <div id="delete-item-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-slate-900/50 p-4">
         <div class="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl border px-8">

@@ -112,6 +112,7 @@ Route::middleware(['auth', 'active'])->group(function () {
             Route::patch('/waiting-list/{order}/status', [\App\Http\Controllers\Crm\WaitingListController::class, 'status'])->name('waiting-list.status');
         });
         Route::get('/customers',              [CustomerController::class, 'index'])->name('customers.index');
+        Route::get('/customers/export',       [CustomerController::class, 'export'])->name('customers.export');
         Route::get('/customers/create',       [CustomerController::class, 'create'])->name('customers.create');
         Route::post('/customers',             [CustomerController::class, 'store'])->name('customers.store');
         Route::get('/customers/{customer}',   [CustomerController::class, 'show'])->name('customers.show');

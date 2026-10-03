@@ -34,10 +34,14 @@
                 {{-- Semua field dari old() --}}
                 <input type="hidden" name="name"    value="{{ old('name') }}">
                 <input type="hidden" name="address" value="{{ old('address') }}">
+                <input type="hidden" name="city" value="{{ old('city') }}">
                 <input type="hidden" name="source"  value="{{ old('source') }}">
                 <input type="hidden" name="source_other" value="{{ old('source_other') }}">
                 <input type="hidden" name="branch_id" value="{{ old('branch_id') }}">
                 <input type="hidden" name="notes"   value="{{ old('notes') }}">
+                @foreach(['purchase_product_name','purchase_brand','purchase_product_type','purchase_unit_price','purchase_payment_method','purchase_date'] as $field)
+                    <input type="hidden" name="{{ $field }}" value="{{ old($field) }}">
+                @endforeach
                 @foreach(old('contact_type', []) as $i => $ct)
                     <input type="hidden" name="contact_type[]"  value="{{ $ct }}">
                     <input type="hidden" name="contact_value[]" value="{{ old('contact_value')[$i] ?? '' }}">
@@ -73,6 +77,13 @@
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Alamat <span class="text-slate-400 font-normal">(opsional)</span></label>
                         <input type="text" name="address" value="{{ old('address') }}"
                                class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Kota / area</label>
+                        <input type="text" name="city" maxlength="100" value="{{ old('city') }}" placeholder="Contoh: Palembang"
+                               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                        <p class="mt-1 text-[11px] text-slate-400">Dipakai untuk filter target pelanggan berdasarkan kota.</p>
                     </div>
 
                     <div>
@@ -138,7 +149,7 @@
                             $oldPrimary = old('contact_primary', 0);
                         @endphp
                         @foreach($oldTypes as $i => $ct)
-                            <div class="contact-row flex items-center gap-2">
+                            <div class="contact-row grid grid-cols-1 gap-2 sm:grid-cols-[8rem_minmax(0,1fr)_auto_auto] sm:items-center">
                                 <select name="contact_type[]"
                                         class="rounded-lg border border-slate-300 px-2 py-2 text-sm bg-white w-32 flex-shrink-0">
                                     @foreach(['whatsapp','phone','email','other'] as $type)
@@ -171,7 +182,37 @@
             </div>
         </div>
 
-        <div class="mt-5 flex gap-3">
+        @if($user->canManageSales())
+            <div class="mt-5 rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+                <div class="mb-4">
+                    <h2 class="font-bold text-slate-700">Transaksi awal <span class="text-xs font-normal text-slate-400">(opsional)</span></h2>
+                    <p class="mt-1 text-xs text-slate-500">Isi bila pelanggan langsung membeli produk. Data ini otomatis masuk Penjualan CRM dan jadwal follow-up.</p>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                    <label class="text-xs font-semibold text-slate-600 xl:col-span-2">Produk
+                        <input name="purchase_product_name" maxlength="150" value="{{ old('purchase_product_name') }}" placeholder="Contoh: Samsung Galaxy A56" class="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                    </label>
+                    <label class="text-xs font-semibold text-slate-600">Brand
+                        <input name="purchase_brand" maxlength="100" value="{{ old('purchase_brand') }}" placeholder="Samsung" class="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                    </label>
+                    <label class="text-xs font-semibold text-slate-600">Kategori
+                        <input name="purchase_product_type" maxlength="100" value="{{ old('purchase_product_type') }}" placeholder="Smartphone" class="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                    </label>
+                    <label class="text-xs font-semibold text-slate-600">Harga produk
+                        <input data-customer-rupiah name="purchase_unit_price" inputmode="numeric" value="{{ old('purchase_unit_price') !== null ? number_format((float) old('purchase_unit_price'), 0, ',', '.') : '' }}" placeholder="7.000.000" class="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                    </label>
+                    <label class="text-xs font-semibold text-slate-600">Metode pembayaran
+                        <select name="purchase_payment_method" class="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"><option value="">Pilih metode</option>@foreach(\App\Models\Purchase::PAYMENT_METHODS as $key=>$label)<option value="{{ $key }}" @selected(old('purchase_payment_method')===$key)>{{ $label }}</option>@endforeach</select>
+                    </label>
+                    <label class="text-xs font-semibold text-slate-600">Tanggal transaksi
+                        <input type="date" name="purchase_date" max="{{ today()->toDateString() }}" value="{{ old('purchase_date', today()->toDateString()) }}" class="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                    </label>
+                </div>
+                @foreach(['purchase_product_name','purchase_brand','purchase_product_type','purchase_unit_price','purchase_payment_method','purchase_date'] as $field) @error($field)<p class="mt-2 text-xs text-rose-500">{{ $message }}</p>@enderror @endforeach
+            </div>
+        @endif
+
+        <div class="mt-5 flex flex-col gap-3 sm:flex-row">
             <button type="submit"
                     class="rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-bold px-6 py-2.5">
                 Simpan Pelanggan
@@ -222,5 +263,11 @@ function addContact() {
 
     rows.appendChild(tpl);
 }
+
+document.querySelectorAll('[data-customer-rupiah]').forEach(function (input) {
+    input.addEventListener('input', function () {
+        input.value = input.value.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    });
+});
 </script>
 @endpush

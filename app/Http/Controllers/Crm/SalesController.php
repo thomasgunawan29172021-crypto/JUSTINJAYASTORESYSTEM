@@ -73,7 +73,7 @@ class SalesController extends Controller
 
         return response()->json(['normalized' => $phone, 'customers' => $matches->map(fn ($customer) => [
             'id' => $customer->id, 'name' => $customer->name, 'address' => $customer->address,
-            'source' => $customer->source, 'branch_id' => $customer->branch_id,
+            'city' => $customer->city, 'source' => $customer->source, 'branch_id' => $customer->branch_id,
             'phones' => $customer->contacts->whereIn('type', ['phone', 'whatsapp'])->pluck('value')->values(),
         ])->values()]);
     }
@@ -156,7 +156,7 @@ class SalesController extends Controller
             'phone' => ['required', 'string', 'max:30', 'regex:/^[+0-9()\s-]+$/'],
             'customer_id' => 'nullable|integer|min:1', 'name' => 'nullable|string|max:100',
             'secondary_phone' => ['nullable', 'string', 'max:30', 'regex:/^[+0-9()\s-]+$/'],
-            'address' => 'nullable|string|max:255', 'source' => 'nullable|string|max:50',
+            'address' => 'nullable|string|max:255', 'city' => 'nullable|string|max:100', 'source' => 'nullable|string|max:50',
             'branch_id' => 'required|integer|exists:branches,id', 'purchased_at' => 'required|date|before_or_equal:today',
             'payment_method' => ['required', Rule::in(array_keys(Purchase::PAYMENT_METHODS))], 'notes' => 'nullable|string|max:2000',
             'items' => 'required|array|min:1|max:100', 'items.*.product_name' => 'required|string|max:150',
@@ -192,7 +192,7 @@ class SalesController extends Controller
             $contacts[] = ['type' => 'phone', 'value' => $secondary, 'is_primary' => false];
         }
         return Customer::register([
-            'name' => trim($data['name']), 'address' => $data['address'] ?? null, 'source' => $data['source'] ?? null,
+            'name' => trim($data['name']), 'address' => $data['address'] ?? null, 'city' => $data['city'] ?? null, 'source' => $data['source'] ?? null,
             'branch_id' => $this->branchId($request, $data['branch_id']),
         ], $contacts, $request->user());
     }
@@ -241,7 +241,7 @@ class SalesController extends Controller
             ->when($filters['product_type'] ?? null, fn ($q, $v) => $q->whereHas('items', fn ($i) => $i->where('product_type', $v)))
             ->when($filters['payment_method'] ?? null, fn ($q, $v) => $q->where('payment_method', $v))
             ->when($filters['source'] ?? null, fn ($q, $v) => $q->whereHas('customer', fn ($c) => $c->where('source', $v)))
-            ->when($filters['domicile'] ?? null, fn ($q, $v) => $q->whereHas('customer', fn ($c) => $c->where('address', 'like', '%'.$v.'%')))
+            ->when($filters['domicile'] ?? null, fn ($q, $v) => $q->whereHas('customer', fn ($c) => $c->where(fn ($area) => $area->where('city', 'like', '%'.$v.'%')->orWhere('address', 'like', '%'.$v.'%'))))
             ->when(isset($filters['min_total']), fn ($q) => $q->where('total_amount', '>=', $filters['min_total']))
             ->when(isset($filters['max_total']), fn ($q) => $q->where('total_amount', '<=', $filters['max_total']))
             ->when(($filters['branch_id'] ?? null) && ($request->user()->isCeo() || $request->user()->hasRole(UserRole::Crm)), fn ($q) => $q->where('branch_id', $filters['branch_id']));

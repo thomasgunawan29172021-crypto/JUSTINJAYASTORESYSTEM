@@ -3,7 +3,7 @@
 @section('content')
 <div class="mx-auto max-w-5xl space-y-5">
     <div class="flex flex-wrap items-start justify-between gap-3"><div><a href="{{ route('crm.sales.index') }}" class="text-sm text-emerald-700">← Penjualan</a><h1 class="mt-1 text-2xl font-bold">Penjualan #{{ $purchase->id }}</h1><p class="text-sm text-slate-500">{{ $purchase->purchased_at->format('d M Y') }} · {{ $purchase->branch->name }}</p></div>
-        @if(auth()->user()->isCeo())<div class="flex gap-2"><a href="{{ route('crm.sales.edit', $purchase) }}" class="rounded-lg border px-4 py-2 font-semibold">Edit</a><form method="POST" action="{{ route('crm.sales.destroy', $purchase) }}" onsubmit="return confirm('Hapus transaksi ini? Data akan hilang dari laporan penjualan.')">@csrf @method('DELETE')<button class="rounded-lg border border-rose-200 px-4 py-2 font-semibold text-rose-600">Hapus</button></form></div>@endif
+        @if(auth()->user()->isCeo())<div class="flex flex-wrap gap-2"><a href="{{ route('crm.sales.edit', $purchase) }}" class="rounded-lg border px-4 py-2 font-semibold">Edit</a><form method="POST" action="{{ route('crm.sales.destroy', $purchase) }}" onsubmit="return confirm('Hapus transaksi ini? Data akan hilang dari laporan penjualan.')">@csrf @method('DELETE')<button class="rounded-lg border border-rose-200 px-4 py-2 font-semibold text-rose-600">Hapus</button></form></div>@endif
     </div>
     <div class="grid gap-5 md:grid-cols-3">
         <div class="rounded-xl border bg-white p-5"><p class="text-xs uppercase text-slate-400">Pelanggan</p><a href="{{ route('crm.customers.show', $purchase->customer) }}" class="mt-1 block text-lg font-bold text-emerald-700">{{ $purchase->customer->name }}</a>@foreach($purchase->customer->contacts->whereIn('type', ['phone','whatsapp']) as $contact)<p class="text-sm text-slate-600">{{ $contact->value }}</p>@endforeach<p class="mt-3 text-xs text-slate-400">Sumber</p><p>{{ $purchase->customer->source ?: '—' }}</p><p class="mt-3 text-xs text-slate-400">Domisili</p><p>{{ $purchase->customer->address ?: '—' }}</p></div>
@@ -14,3 +14,6 @@
     </div>
 </div>
 @endsection
+@push('scripts')
+<style>@media(max-width:767px){.content-wrap table{min-width:640px}.content-wrap .overflow-hidden{overflow-x:auto}.content-wrap dl.grid{grid-template-columns:1fr}}</style>
+@endpush

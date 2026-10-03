@@ -28,7 +28,7 @@
             <label class="text-xs text-slate-500">Total minimum<input data-rupiah-filter inputmode="numeric" name="min_total" value="{{ request('min_total') !== null ? number_format((float) request('min_total'), 0, ',', '.') : '' }}" class="mt-1 block w-full rounded-lg border p-2 text-sm"></label>
             <label class="text-xs text-slate-500">Total maksimum<input data-rupiah-filter inputmode="numeric" name="max_total" value="{{ request('max_total') !== null ? number_format((float) request('max_total'), 0, ',', '.') : '' }}" class="mt-1 block w-full rounded-lg border p-2 text-sm"></label>
         </div>
-        <div class="flex gap-2"><button class="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white">Terapkan filter</button><a href="{{ route('crm.sales.index') }}" class="rounded-lg border px-4 py-2 text-sm">Reset</a></div>
+        <div class="flex flex-col gap-2 sm:flex-row"><button class="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white">Terapkan filter</button><a href="{{ route('crm.sales.index') }}" class="rounded-lg border px-4 py-2 text-center text-sm">Reset</a></div>
     </form>
 
     <div class="overflow-hidden rounded-xl border bg-white">
@@ -40,4 +40,7 @@
 @endsection
 @push('scripts')
 <script>document.querySelectorAll('[data-rupiah-filter]').forEach(input => input.addEventListener('input', () => { input.value = input.value.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }));</script>
+@endpush
+@push('scripts')
+<style>@media(max-width:767px){.content-wrap table{min-width:900px}}</style>
 @endpush
