@@ -111,12 +111,12 @@ class CustomerController extends Controller
     public function show(Request $request, Customer $customer)
     {
         $this->authorizeCustomer($request, $customer);
-        $customer->load([
-            'contacts', 'branch', 'creator',
-            // 'purchases' => fn ($q) => $q->latest('purchased_at')->with('items'),  // aktifkan setelah Step 2
-            // 'reminders' => fn ($q) => $q->latest('due_date'),                     // aktifkan setelah Step 3
-            'histories.user',
-        ]);
+        $relations = ['contacts', 'branch', 'creator', 'histories.user'];
+        if ($request->user()->canManageSales()) {
+            $relations['purchases'] = fn ($q) => $q->latest('purchased_at')->with('items');
+            $relations['reminders'] = fn ($q) => $q->latest('scheduled_at')->with('completer');
+        }
+        $customer->load($relations);
 
         return view('crm.customers.show', compact('customer'));
     }

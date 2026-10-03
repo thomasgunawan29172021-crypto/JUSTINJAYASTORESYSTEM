@@ -30,6 +30,8 @@ use App\Http\Controllers\Warranty\WarrantyVendorController;
 use App\Http\Controllers\WorkScheduleController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Crm\CustomerController;
+use App\Http\Controllers\Crm\FollowUpController;
+use App\Http\Controllers\Crm\SalesController;
 
 
 /*
@@ -91,6 +93,18 @@ Route::middleware(['auth', 'active'])->group(function () {
     
     // ---------------- CRM — PELANGGAN ---------------- (pindah ke sini)
     Route::middleware('crm')->prefix('crm')->name('crm.')->group(function () {
+        Route::middleware('crm.sales')->group(function () {
+            Route::get('/sales', [SalesController::class, 'index'])->name('sales.index');
+            Route::get('/sales/create', [SalesController::class, 'create'])->name('sales.create');
+            Route::get('/sales/customer-lookup', [SalesController::class, 'lookupCustomer'])->name('sales.customer-lookup');
+            Route::post('/sales', [SalesController::class, 'store'])->name('sales.store');
+            Route::get('/sales/{purchase}', [SalesController::class, 'show'])->name('sales.show');
+            Route::get('/sales/{purchase}/edit', [SalesController::class, 'edit'])->name('sales.edit');
+            Route::put('/sales/{purchase}', [SalesController::class, 'update'])->name('sales.update');
+            Route::delete('/sales/{purchase}', [SalesController::class, 'destroy'])->name('sales.destroy');
+            Route::get('/follow-ups', [FollowUpController::class, 'index'])->name('follow-ups.index');
+            Route::patch('/follow-ups/{reminder}', [FollowUpController::class, 'update'])->name('follow-ups.update');
+        });
         Route::middleware('crm.waiting-list')->group(function () {
             Route::get('/waiting-list', [\App\Http\Controllers\Crm\WaitingListController::class, 'index'])->name('waiting-list.index');
             Route::get('/waiting-list/create', [\App\Http\Controllers\Crm\WaitingListController::class, 'create'])->name('waiting-list.create');

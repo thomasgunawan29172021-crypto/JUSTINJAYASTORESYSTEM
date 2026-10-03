@@ -22,8 +22,11 @@
         $canInputRetur = $u->canCreateWarrantyClaim() || $canRetur;
         $canCrm = $u->canAccessCrm();
         $canManageWaitingList = $u->canManageWaitingList();
+        $canManageSales = $u->canManageSales();
         $waitingCount = $canManageWaitingList && \Illuminate\Support\Facades\Schema::hasTable('waiting_items')
             ? \App\Models\WaitingItem::where('status', '!=', 'purchased')->whereHas('order', fn ($q) => $q->visibleTo($u))->count() : 0;
+        $followUpCount = $canManageSales && \Illuminate\Support\Facades\Schema::hasTable('reminders')
+            ? \App\Models\Reminder::visibleTo($u)->where('status', 'pending')->whereDate('scheduled_at', '<=', today())->count() : 0;
 
         // [label, route name, boleh diakses?]
         $modules = [
@@ -42,7 +45,9 @@
             'crm' => ['label' => 'CRM', 'tiles' => [
                 ['Pelanggan',    'crm.customers.index',  $canCrm],
                 ['Pelanggan Baru', 'crm.customers.create', $canCrm],
-                ['Pesanan Barang ('.$waitingCount.')', 'crm.waiting-list.index', $canManageWaitingList],
+                ['Penjualan', 'crm.sales.index', $canManageSales],
+                ['Follow-up Hari Ini ('.$followUpCount.')', 'crm.follow-ups.index', $canManageSales],
+                ['Waiting List / PO List ('.$waitingCount.')', 'crm.waiting-list.index', $canManageWaitingList],
             ]],
             'marketplace' => ['label' => 'Marketplace', 'tiles' => [
                 ['Tugas Saya',   'marketplace.tasks.index', $isCeo || $isPic],
@@ -137,6 +142,8 @@
             'calendar.index'                => '📅',
             'crm.customers.index'           => '👤',
             'crm.customers.create'          => '➕',
+            'crm.sales.index'               => '🛍️',
+            'crm.follow-ups.index'          => '📞',
         ];
 
         // Peta route → label tab (dari menu + halaman detail yang tak ada di menu)
@@ -165,6 +172,9 @@
             'warranty.claims.receipt'         => 'Nota Retur',
             'crm.customers.show'              => 'Detail Pelanggan',
             'crm.customers.edit'              => 'Edit Pelanggan',
+            'crm.sales.create'                 => 'Catat Penjualan',
+            'crm.sales.show'                   => 'Detail Penjualan',
+            'crm.sales.edit'                   => 'Edit Penjualan',
         ];
 
         $curRoute = request()->route()?->getName() ?? 'dashboard';

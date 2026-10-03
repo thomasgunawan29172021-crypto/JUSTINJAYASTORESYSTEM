@@ -16,6 +16,9 @@
             </p>
         </div>
         <div class="flex gap-2">
+            @if(auth()->user()->canManageSales())
+                <a href="{{ route('crm.sales.create', ['customer_id' => $customer->id]) }}" class="rounded-xl bg-sky-600 text-white text-sm font-semibold px-4 py-2">+ Penjualan</a>
+            @endif
             @if(auth()->user()->canManageWaitingList())
                 <a href="{{ route('crm.waiting-list.create', ['customer_id' => $customer->id]) }}" class="rounded-xl bg-emerald-600 text-white text-sm font-semibold px-4 py-2">+ Waiting List</a>
             @endif
@@ -82,11 +85,12 @@
         {{-- Kolom tengah + kanan: transaksi, reminder, histori --}}
         <div class="lg:col-span-2 space-y-5">
 
+            @if(auth()->user()->canManageSales())
             {{-- Riwayat Transaksi --}}
             <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100">
                     <h2 class="font-bold text-slate-700">Riwayat Transaksi</h2>
-                    {{-- Tombol buat purchase baru akan ditambah di Step 2 --}}
+                    @if(auth()->user()->canManageSales())<a href="{{ route('crm.sales.create', ['customer_id' => $customer->id]) }}" class="text-sm font-semibold text-emerald-700">+ Tambah</a>@endif
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
@@ -95,32 +99,23 @@
                                 <th class="px-4 py-2 text-left">Tanggal</th>
                                 <th class="px-4 py-2 text-left">Produk</th>
                                 <th class="px-4 py-2 text-right">Total</th>
-                                <th class="px-4 py-2 text-left">Garansi</th>
+                                <th class="px-4 py-2 text-left">Pembayaran</th>
                                 <th class="px-4 py-2"></th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
-                            @forelse([] as $p)
+                            @forelse($customer->purchases as $p)
                                 <tr class="hover:bg-slate-50">
                                     <td class="px-4 py-2 whitespace-nowrap text-xs text-slate-500">
-                                        {{ \Carbon\Carbon::parse($p->purchase_date)->format('d M Y') }}
+                                        {{ $p->purchased_at->format('d M Y') }}
                                     </td>
                                     <td class="px-4 py-2">{{ $p->items->pluck('product_name')->join(', ') }}</td>
                                     <td class="px-4 py-2 text-right font-mono text-xs">
                                         Rp {{ number_format($p->total_amount, 0, ',', '.') }}
                                     </td>
-                                    <td class="px-4 py-2 text-xs">
-                                        @if($p->warranty_expires_at)
-                                            <span class="{{ \Carbon\Carbon::parse($p->warranty_expires_at)->isPast() ? 'text-rose-500' : 'text-emerald-600' }}">
-                                                {{ \Carbon\Carbon::parse($p->warranty_expires_at)->format('d M Y') }}
-                                            </span>
-                                        @else
-                                            <span class="text-slate-300">—</span>
-                                        @endif
-                                    </td>
+                                    <td class="px-4 py-2 text-xs">{{ \App\Models\Purchase::PAYMENT_METHODS[$p->payment_method] ?? $p->payment_method }}</td>
                                     <td class="px-4 py-2 text-right">
-                                        {{-- Link ke detail purchase (Step 2) --}}
-                                        <a href="#" class="text-xs text-sky-500 hover:underline">Detail</a>
+                                        @if(auth()->user()->canManageSales())<a href="{{ route('crm.sales.show', $p) }}" class="text-xs text-sky-500 hover:underline">Detail</a>@endif
                                     </td>
                                 </tr>
                             @empty
@@ -147,30 +142,29 @@
                                 <th class="px-4 py-2 text-left">Jadwal</th>
                                 <th class="px-4 py-2 text-left">Jenis</th>
                                 <th class="px-4 py-2 text-left">Status</th>
-                                <th class="px-4 py-2 text-left">Channel</th>
+                                <th class="px-4 py-2 text-left">Catatan</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
-                            @forelse([] as $r)
+                            @forelse($customer->reminders as $r)
                                 <tr class="hover:bg-slate-50">
                                     <td class="px-4 py-2 whitespace-nowrap text-xs text-slate-500">
-                                        {{ \Carbon\Carbon::parse($r->scheduled_at)->format('d M Y') }}
+                                        {{ $r->scheduled_at->format('d M Y') }}
                                     </td>
-                                    <td class="px-4 py-2 text-xs">{{ $r->type }}</td>
+                                    <td class="px-4 py-2 text-xs">{{ \App\Models\Reminder::TYPES[$r->type] ?? $r->type }}</td>
                                     <td class="px-4 py-2">
                                         @php
                                             $badge = match($r->status) {
-                                                'sent'       => 'bg-sky-100 text-sky-700',
-                                                'replied'    => 'bg-emerald-100 text-emerald-700',
-                                                'no_response'=> 'bg-rose-100 text-rose-700',
+                                                'completed' => 'bg-emerald-100 text-emerald-700',
+                                                'skipped' => 'bg-amber-100 text-amber-700',
                                                 default      => 'bg-slate-100 text-slate-500',
                                             };
                                         @endphp
                                         <span class="px-2 py-0.5 rounded-full text-[11px] font-medium {{ $badge }}">
-                                            {{ $r->status }}
+                                            {{ \App\Models\Reminder::STATUSES[$r->status] ?? $r->status }}
                                         </span>
                                     </td>
-                                    <td class="px-4 py-2 text-xs text-slate-500">{{ $r->channel ?? '—' }}</td>
+                                    <td class="px-4 py-2 text-xs text-slate-500">{{ $r->note ?: 'Manual' }}</td>
                                 </tr>
                             @empty
                                 <tr>
@@ -183,6 +177,7 @@
                     </table>
                 </div>
             </div>
+            @endif
 
             {{-- Histori Audit --}}
             <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -206,6 +201,10 @@
                                                 'deleted' => 'menghapus pelanggan',
                                                 'waiting_created' => 'mencatat waiting list',
                                                 'waiting_status' => 'mengubah status waiting list',
+                                                'purchase_created' => 'mencatat penjualan',
+                                                'purchase_updated' => 'mengubah penjualan',
+                                                'purchase_deleted' => 'menghapus penjualan',
+                                                'followup_completed' => 'menyelesaikan follow-up',
                                                 default   => $h->action,
                                             };
                                         @endphp

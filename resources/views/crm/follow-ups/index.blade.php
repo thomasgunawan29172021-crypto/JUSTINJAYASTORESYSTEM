@@ -1,0 +1,27 @@
+@extends('layouts.app')
+@section('title', 'Follow-up CRM')
+@section('content')
+<div class="space-y-5">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+        <div><h1 class="text-2xl font-bold">Follow-up CRM</h1><p class="text-sm text-slate-500">Daftar pelanggan yang perlu dihubungi berdasarkan waktu pembelian dan kebutuhan aktif.</p></div>
+        <a href="{{ route('crm.sales.create') }}" class="rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white">+ Catat penjualan</a>
+    </div>
+    <nav class="flex flex-wrap gap-2">@foreach(['due'=>'Perlu dihubungi','upcoming'=>'Akan datang','completed'=>'Sudah selesai'] as $key=>$label)<a href="{{ route('crm.follow-ups.index',['status'=>$key]) }}" class="rounded-lg px-4 py-2 text-sm font-semibold {{ $status===$key?'bg-slate-800 text-white':'border bg-white' }}">{{ $label }}</a>@endforeach</nav>
+    <section class="overflow-hidden rounded-xl border bg-white">
+        <div class="border-b px-5 py-3"><h2 class="font-bold">Jadwal dari transaksi</h2></div>
+        <div class="overflow-x-auto"><table class="w-full text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500"><tr><th class="p-3 text-left">Jadwal</th><th class="p-3 text-left">Pelanggan</th><th class="p-3 text-left">Alasan</th><th class="p-3 text-left">Pembelian</th><th class="p-3 text-left">Aksi</th></tr></thead><tbody class="divide-y">
+        @forelse($reminders as $reminder)<tr class="{{ $reminder->status==='pending' && $reminder->scheduled_at->isBefore(today())?'bg-amber-50':'' }}">
+            <td class="p-3 whitespace-nowrap font-semibold">{{ $reminder->scheduled_at->format('d M Y') }}@if($reminder->status==='pending' && $reminder->scheduled_at->isBefore(today()))<div class="text-xs text-amber-700">Terlambat {{ $reminder->scheduled_at->diffInDays(today()) }} hari</div>@endif</td>
+            <td class="p-3"><a href="{{ route('crm.customers.show',$reminder->customer) }}" class="font-semibold text-emerald-700">{{ $reminder->customer->name }}</a><div class="text-xs text-slate-500">{{ $reminder->customer->contacts->whereIn('type',['phone','whatsapp'])->pluck('value')->join(' · ') }}</div><div class="text-xs text-slate-400">{{ $reminder->branch->name }}</div></td>
+            <td class="p-3">{{ \App\Models\Reminder::TYPES[$reminder->type] ?? $reminder->type }}</td>
+            <td class="p-3">{{ $reminder->purchase?->items?->map(fn($i)=>$i->product_name.' ×'.$i->quantity)->join(', ') }}<div class="text-xs font-semibold">Rp {{ number_format($reminder->purchase?->total_amount,0,',','.') }}</div></td>
+            <td class="p-3">@if($reminder->status==='pending')<form method="POST" action="{{ route('crm.follow-ups.update',$reminder) }}" class="flex min-w-64 gap-2">@csrf @method('PATCH')<input type="hidden" name="status" value="completed"><input name="note" maxlength="1000" placeholder="Hasil follow-up (opsional)" class="min-w-0 flex-1 rounded-lg border p-2 text-xs"><button class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white">Selesai</button></form>@else<span class="text-emerald-600">{{ \App\Models\Reminder::STATUSES[$reminder->status] }} · {{ $reminder->completer?->name }}</span>@if($reminder->note)<div class="text-xs text-slate-500">{{ $reminder->note }}</div>@endif @endif</td>
+        </tr>@empty<tr><td colspan="5" class="p-8 text-center text-slate-400">Tidak ada jadwal pada daftar ini.</td></tr>@endforelse
+        </tbody></table></div>@if($reminders->hasPages())<div class="border-t p-4">{{ $reminders->links() }}</div>@endif
+    </section>
+    @if($status==='due')<div class="grid gap-5 xl:grid-cols-2">
+        <section class="rounded-xl border bg-white p-5"><h2 class="font-bold">Waiting list aktif</h2><p class="mb-3 text-xs text-slate-500">Pelanggan yang masih menunggu barang.</p><div class="space-y-3">@forelse($waiting as $order)<div class="rounded-lg border p-3"><a href="{{ route('crm.customers.show',$order->customer) }}" class="font-semibold text-emerald-700">{{ $order->customer->name }}</a><span class="ml-2 text-xs text-slate-400">{{ $order->customer->primaryContact()?->value }}</span><p class="mt-1 text-sm">{{ $order->items->map(fn($i)=>$i->product_name.' ×'.$i->quantity.' ('.\App\Models\WaitingItem::STATUSES[$i->status].')')->join(', ') }}</p></div>@empty<p class="text-sm text-slate-400">Tidak ada waiting list aktif.</p>@endforelse</div>@if($waiting->isNotEmpty())<a href="{{ route('crm.waiting-list.index') }}" class="mt-4 inline-block text-sm font-semibold text-emerald-700">Buka semua waiting list →</a>@endif</section>
+        <section class="rounded-xl border bg-white p-5"><h2 class="font-bold">Kendala garansi pelanggan</h2><p class="mb-3 text-xs text-slate-500">Klaim aktif milik pelanggan pada daftar follow-up di atas.</p><div class="space-y-3">@forelse($claims as $claim)<div class="rounded-lg border p-3">@if(auth()->user()->canCreateWarrantyClaim())<a href="{{ route('warranty.claims.show',$claim) }}" class="font-semibold text-emerald-700">{{ $claim->claim_number }} · {{ $claim->customer_name }}</a>@else<p class="font-semibold">{{ $claim->claim_number }} · {{ $claim->customer_name }}</p>@endif<p class="text-sm">{{ $claim->product?->name }} — {{ $claim->reason }}</p><p class="text-xs text-slate-400">{{ $claim->status->label() }} · {{ $claim->branch->name }}</p></div>@empty<p class="text-sm text-slate-400">Tidak ada klaim garansi aktif pada daftar hari ini.</p>@endforelse</div></section>
+    </div>@endif
+</div>
+@endsection

@@ -39,6 +39,11 @@ class Customer extends Model
         return $this->hasMany(Reminder::class);
     }
 
+    public function waitingOrders(): HasMany
+    {
+        return $this->hasMany(WaitingOrder::class);
+    }
+
     public function histories(): HasMany
     {
         return $this->hasMany(CustomerHistory::class)->latest('created_at');

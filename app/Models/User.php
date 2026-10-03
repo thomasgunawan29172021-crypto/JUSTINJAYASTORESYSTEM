@@ -97,6 +97,11 @@ class User extends Authenticatable
         return $this->isCeo() || $this->hasRole(UserRole::Crm);
     }
 
+    public function canManageSales(): bool
+    {
+        return $this->isCeo() || $this->anyRole(fn ($role) => in_array($role, [UserRole::Crm, UserRole::KepalaToko], true));
+    }
+
     /** true kalau SALAH SATU role yang dipegang lolos pengecekan $check. */
     protected function anyRole(callable $check): bool
     {
