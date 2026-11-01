@@ -377,6 +377,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::patch('/incentives/{incentive}/decision', [IncentiveController::class, 'decide'])->name('incentives.decision');
         Route::get('/incentive-settings', [IncentiveSettingController::class, 'index'])->name('incentives.settings');
         Route::post('/incentive-settings', [IncentiveSettingController::class, 'store'])->name('incentives.settings.store');
+        Route::post('/incentive-settings/copy-all', [IncentiveSettingController::class, 'copyToAll'])->name('incentives.settings.copy-all');
+        Route::put('/incentive-settings/{tier}', [IncentiveSettingController::class, 'update'])->name('incentives.settings.update');
         Route::delete('/incentive-settings/{tier}', [IncentiveSettingController::class, 'destroy'])->name('incentives.settings.destroy');
     });
 });

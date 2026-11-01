@@ -47,7 +47,7 @@
             </div>
         </div>
 
-        <div class="grid sm:grid-cols-2 gap-4">
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
                 <label class="block text-xs font-semibold text-slate-600 mb-1">Role *</label>
                 <select name="role" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
@@ -63,6 +63,17 @@
                     value="{{ old('base_salary') ? number_format(old('base_salary'), 0, ',', '.') : '' }}"
                     placeholder="0"
                     class="money-input w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Tipe promotor</label>
+                <select name="promotor_type" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+                    <option value="">Bukan Promotor</option>
+                    @foreach(\App\Models\User::PROMOTOR_TYPES as $value => $label)
+                        <option value="{{ $value }}" @selected(old('promotor_type') === $value)>{{ $label }}</option>
+                    @endforeach
+                </select>
+                <p class="mt-1 text-[11px] text-slate-400">Menentukan tipe otomatis pada pengajuan insentif.</p>
             </div>
         </div>
 

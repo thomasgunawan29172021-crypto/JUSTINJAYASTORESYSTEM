@@ -41,7 +41,13 @@ class IncentiveCalculatorService
             }
         }
 
-        $tiers = IncentiveTier::orderBy('min_target')->get()->groupBy(fn ($tier) => implode(':', [$tier->branch_id, $tier->currency, $tier->type]));
+        $tiers = IncentiveTier::whereDate('effective_from', '<=', $start->toDateString())
+            ->orderBy('effective_from')->orderBy('min_target')->get()
+            ->groupBy(fn ($tier) => implode(':', [$tier->branch_id, $tier->currency, $tier->type]))
+            ->map(function ($group) {
+                $latest = $group->max(fn ($tier) => $tier->effective_from->format('Y-m-d'));
+                return $group->filter(fn ($tier) => $tier->effective_from->format('Y-m-d') === $latest)->values();
+            });
 
         return $groups->map(function (array $row) use ($tiers) {
             $key = implode(':', [$row['branch_id'], $row['currency'], $row['type']]);

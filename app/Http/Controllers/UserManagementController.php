@@ -12,10 +12,18 @@ use Illuminate\Validation\Rule;
 
 class UserManagementController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $filters = $request->validate([
+            'promotor_type' => ['nullable', Rule::in(['none', ...array_keys(User::PROMOTOR_TYPES)])],
+        ]);
+
         return view('users.index', [
-            'users' => User::with(['branch', 'branches'])->orderBy('name')->get(),
+            'users' => User::with(['branch', 'branches'])
+                ->when(($filters['promotor_type'] ?? null) === 'none', fn ($q) => $q->whereNull('promotor_type'))
+                ->when(in_array($filters['promotor_type'] ?? null, array_keys(User::PROMOTOR_TYPES), true), fn ($q) => $q->where('promotor_type', $filters['promotor_type']))
+                ->orderBy('name')->get(),
+            'filters' => $filters,
         ]);
     }
 
@@ -47,6 +55,7 @@ class UserManagementController extends Controller
             'branch_ids'   => ['required', 'array', 'min:1'],
             'branch_ids.*' => ['required', 'integer', 'distinct', 'exists:branches,id'],
             'base_salary'  => ['nullable', 'integer', 'min:0'],
+            'promotor_type' => ['nullable', Rule::in(array_keys(User::PROMOTOR_TYPES))],
         ], [
             'branch_id.in'          => 'Cabang utama harus termasuk cabang absensi yang dicentang.',
             'branch_ids.required'   => 'Pilih minimal satu cabang absensi.',
@@ -64,6 +73,7 @@ class UserManagementController extends Controller
 
         $data['is_active']   = $request->boolean('is_active');
         $data['base_salary'] = $data['base_salary'] ?? 0;
+        $data['promotor_type'] = ($data['promotor_type'] ?? null) ?: null;
         $data['extra_roles'] = $this->sanitizeExtraRoles($data['extra_roles'] ?? [], $data['role']);
 
         $user = DB::transaction(function () use ($data, $branchIds) {
@@ -105,6 +115,7 @@ class UserManagementController extends Controller
             'branch_ids'   => ['required', 'array', 'min:1'],
             'branch_ids.*' => ['required', 'integer', 'distinct', 'exists:branches,id'],
             'base_salary'  => ['nullable', 'integer', 'min:0'],
+            'promotor_type' => ['nullable', Rule::in(array_keys(User::PROMOTOR_TYPES))],
         ], [
             'branch_id.in'          => 'Cabang utama harus termasuk cabang absensi yang dicentang.',
             'branch_ids.required'   => 'Pilih minimal satu cabang absensi.',
@@ -121,6 +132,7 @@ class UserManagementController extends Controller
         unset($data['branch_ids']);
 
         $data['is_active']   = $request->boolean('is_active');
+        $data['promotor_type'] = ($data['promotor_type'] ?? null) ?: null;
         $data['extra_roles'] = $this->sanitizeExtraRoles($data['extra_roles'] ?? [], $data['role']);
 
         // Anti kunci diri sendiri: CEO tidak boleh menonaktifkan

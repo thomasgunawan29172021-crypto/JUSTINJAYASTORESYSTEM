@@ -625,59 +625,147 @@
 </script>
 
 <script>
-/* ============ Draft form (anti-ilang pas pindah tab) ============
-   Pasang: data-draft="nama-unik" di <form>. HANYA buat form CREATE —
-   form edit jangan, restore draft basi di atas data server itu bahaya.
-   Batas: file/foto GAK bisa disimpen (dilarang browser) — harus pilih ulang.
-
-   URUTAN PENTING: blok ini WAJIB di atas searchable. Draft mulihin value
-   <select> dulu, baru searchable baca value itu buat nampilin teksnya. */
+/* ============ Draft form global (anti-ilang pas pindah tab/browser) ============
+   Seluruh form input utama disimpan di localStorage. Password, token, dan file
+   sengaja tidak pernah disimpan. Tambahkan data-no-draft untuk form aksi kecil. */
 (function () {
-    document.querySelectorAll('form[data-draft]').forEach(function (f) {
-        var key = 'jjdraft:' + f.getAttribute('data-draft');
-        var saved = {};
-        try { saved = JSON.parse(sessionStorage.getItem(key) || '{}'); } catch (e) {}
+    var userId = @json((string) auth()->id());
+    var hasServerErrors = @json($errors->any());
+    var dirtyForms = new Set();
+    var submitting = false;
 
-        function fields() {
-            return Array.prototype.filter.call(f.elements, function (el) {
-                return el.name && el.type !== 'file' && el.type !== 'password' && el.name !== '_token';
-            });
-        }
+    function methodOf(form) {
+        var spoof = form.querySelector('input[name="_method"]');
+        return String(spoof ? spoof.value : (form.method || 'GET')).toUpperCase();
+    }
 
-        /* Restore — old() dari server MENANG: field yang udah keisi gak ditimpa,
-           biar abis gagal validasi gak ketimpa draft yang lebih lama. */
-        fields().forEach(function (el) {
-            if (!(el.name in saved)) return;
-            if (el.type === 'checkbox' || el.type === 'radio') {
-                if (!f.querySelector('[name="' + el.name.replace(/"/g, '') + '"]:checked')) {
-                    el.checked = Array.isArray(saved[el.name])
-                        ? saved[el.name].indexOf(el.value) !== -1
-                        : saved[el.name] === el.value;
-                }
-            } else if (el.value === '') {
-                el.value = saved[el.name];
+    function eligibleFields(form) {
+        return Array.prototype.filter.call(form.elements, function (el) {
+            return el.name && !el.disabled && el.name !== '_token' && el.name !== '_method'
+                && el.type !== 'password' && el.type !== 'file' && el.type !== 'submit'
+                && el.type !== 'button' && el.type !== 'reset';
+        });
+    }
+
+    function shouldManage(form) {
+        if (form.hasAttribute('data-no-draft') || form.hasAttribute('data-draft-key')) return false;
+        if (['GET', 'DELETE', 'PATCH'].indexOf(methodOf(form)) !== -1) return false;
+        return eligibleFields(form).some(function (el) { return el.type !== 'hidden'; });
+    }
+
+    function keyFor(form, index) {
+        var explicit = form.getAttribute('data-draft') || form.getAttribute('data-draft-dynamic');
+        var identity = explicit || [location.pathname, form.getAttribute('action') || '', index].join(':');
+        return 'jjdraft:v2:' + userId + ':' + identity;
+    }
+
+    function valuesOf(form) {
+        var values = {};
+        eligibleFields(form).forEach(function (el) {
+            if (el.type === 'checkbox') {
+                values[el.name] = values[el.name] || [];
+                if (el.checked) values[el.name].push(el.value);
+            } else if (el.type === 'radio') {
+                if (el.checked) values[el.name] = el.value;
+            } else {
+                values[el.name] = el.value;
+            }
+        });
+        return values;
+    }
+
+    function save(form, key) {
+        var payload = {
+            values: valuesOf(form),
+            itemRows: form.querySelectorAll('.item-row').length,
+            participantRows: form.querySelectorAll('.participant-row').length,
+            savedAt: Date.now()
+        };
+        try { localStorage.setItem(key, JSON.stringify(payload)); } catch (e) {}
+        dirtyForms.add(form);
+    }
+
+    function restoreDynamicRows(form, saved) {
+        if (form.getAttribute('data-draft-dynamic') !== 'incentive') return;
+        var addItem = document.getElementById('add-item');
+        var addParticipant = document.getElementById('add-participant');
+        while (addItem && form.querySelectorAll('.item-row').length < (saved.itemRows || 1)) addItem.click();
+        while (addParticipant && form.querySelectorAll('.participant-row').length < (saved.participantRows || 1)) addParticipant.click();
+    }
+
+    function applyValues(form, values) {
+        eligibleFields(form).forEach(function (el) {
+            if (!Object.prototype.hasOwnProperty.call(values, el.name)) return;
+            if (el.type === 'checkbox') {
+                el.checked = Array.isArray(values[el.name]) && values[el.name].indexOf(el.value) !== -1;
+            } else if (el.type === 'radio') {
+                el.checked = values[el.name] === el.value;
+            } else {
+                el.value = values[el.name];
             }
         });
 
-        function snapshot() {
-            var out = {};
-            fields().forEach(function (el) {
-                if (el.type === 'checkbox') {
-                    out[el.name] = out[el.name] || [];
-                    if (el.checked) out[el.name].push(el.value);
-                } else if (el.type === 'radio') {
-                    if (el.checked) out[el.name] = el.value;
-                } else if (el.value !== '') {
-                    out[el.name] = el.value;
-                }
-            });
-            try { sessionStorage.setItem(key, JSON.stringify(out)); } catch (e) {}
-        }
+        form.querySelectorAll('[data-social-input]').forEach(function (input) {
+            var check = input.closest('div').querySelector('[data-social-check]');
+            if (!check) return;
+            check.checked = input.value !== '';
+            input.classList.toggle('hidden', !check.checked);
+            input.required = check.checked;
+        });
+        var cooperation = form.querySelector('#cooperation');
+        if (cooperation) cooperation.dispatchEvent(new Event('change', { bubbles: true }));
+        form.querySelectorAll('[data-money]').forEach(function (input) {
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+    }
 
-        f.addEventListener('input',  snapshot);
-        f.addEventListener('change', snapshot);
-        f.addEventListener('submit', function () { sessionStorage.removeItem(key); });
+    function init(forms) {
+        forms.forEach(function (form) {
+            var index = Array.prototype.indexOf.call(document.forms, form);
+            if (form.hasAttribute('data-draft-key')) {
+                form.addEventListener('input', function () { dirtyForms.add(form); });
+                form.addEventListener('change', function () { dirtyForms.add(form); });
+                form.addEventListener('submit', function () { dirtyForms.delete(form); });
+                return;
+            }
+            if (!shouldManage(form)) return;
+
+            var key = keyFor(form, index);
+            var saved = null;
+            try { saved = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
+
+            if (saved && saved.values && !hasServerErrors) {
+                restoreDynamicRows(form, saved);
+                applyValues(form, saved.values);
+                dirtyForms.add(form);
+                form.dispatchEvent(new CustomEvent('jjs:draft-restored'));
+            } else if (hasServerErrors) {
+                save(form, key);
+            }
+
+            var snapshot = function () { save(form, key); };
+            form.addEventListener('input', snapshot);
+            form.addEventListener('change', snapshot);
+            form.addEventListener('submit', function () {
+                submitting = true;
+                dirtyForms.delete(form);
+                try { localStorage.removeItem(key); } catch (e) {}
+            });
+        });
+    }
+
+    window.addEventListener('beforeunload', function (event) {
+        if (submitting || dirtyForms.size === 0) return;
+        event.preventDefault();
+        event.returnValue = '';
     });
+
+    // Form biasa dipulihkan sekarang agar komponen searchable membaca nilai draft.
+    // Form dinamis insentif menunggu handler tombol tambah baris selesai dipasang.
+    init(document.querySelectorAll('form:not([data-draft-dynamic])'));
+    var initDynamic = function () { init(document.querySelectorAll('form[data-draft-dynamic]')); };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initDynamic);
+    else initDynamic();
 })();
 </script>
 

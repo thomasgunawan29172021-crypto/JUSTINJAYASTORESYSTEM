@@ -119,14 +119,29 @@ class IncentiveController extends Controller
 
     private function formView(IncentiveSubmission $incentive)
     {
+        $existingUserIds = $incentive->exists
+            ? $incentive->participants->pluck('user_id')->merge($incentive->socialActions->pluck('beneficiary_id'))->unique()->all()
+            : [];
+
         return view('incentives.form', [
             'incentive' => $incentive, 'branches' => Branch::orderBy('name')->get(),
-            'employees' => User::with('branch')->where('is_active', true)->orderBy('name')->get(),
+            'employees' => User::with('branch')->where('is_active', true)
+                ->where(fn ($q) => $q->whereNotNull('promotor_type')->when($existingUserIds, fn ($u) => $u->orWhereIn('id', $existingUserIds)))
+                ->orderBy('name')->get(),
+            'canOverridePromotorType' => auth()->user()->isCeo(),
         ]);
     }
 
     private function validated(Request $request, ?IncentiveSubmission $incentive = null): array
     {
+        $existingUserIds = $incentive?->exists
+            ? $incentive->participants()->pluck('user_id')->merge($incentive->socialActions()->pluck('beneficiary_id'))->unique()->all()
+            : [];
+        $eligiblePromotor = Rule::exists('users', 'id')->where(function ($query) use ($existingUserIds) {
+            $query->where('is_active', true)
+                ->where(fn ($user) => $user->whereNotNull('promotor_type')->when($existingUserIds, fn ($old) => $old->orWhereIn('id', $existingUserIds)));
+        });
+
         $items = collect($request->input('items', []))->map(function ($item) {
             foreach (['capital_price', 'sale_price'] as $key) if (isset($item[$key])) $item[$key] = $this->normalizeMoney($item[$key]);
             return $item;
@@ -141,12 +156,20 @@ class IncentiveController extends Controller
             'items.*.color' => ['nullable', 'string', 'max:80'], 'items.*.condition' => ['required', Rule::in(array_keys(IncentiveSubmission::CONDITIONS))],
             'items.*.imei' => ['nullable', 'string', 'max:100'], 'items.*.capital_price' => ['required', 'numeric', 'min:0', 'max:99999999999999.99'],
             'items.*.sale_price' => ['required', 'numeric', 'min:0', 'max:99999999999999.99'],
-            'participants' => ['required', 'array', 'min:1', 'max:20'], 'participants.*.user_id' => ['required', 'integer', 'distinct', Rule::exists('users', 'id')->where('is_active', true)],
+            'participants' => ['required', 'array', 'min:1', 'max:20'], 'participants.*.user_id' => ['required', 'integer', 'distinct', $eligiblePromotor],
             'participants.*.incentive_type' => ['required', Rule::in(['fl', 'brand'])],
             'participants.*.cooperation_role' => ['nullable', Rule::in(['source', 'closing'])],
-            'social_beneficiary_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where('is_active', true)],
+            'social_beneficiary_id' => ['nullable', 'integer', $eligiblePromotor],
             'social' => ['nullable', 'array'], 'social.*' => ['nullable', 'string', 'max:150'],
         ]);
+
+        $promotorTypes = User::whereIn('id', collect($data['participants'])->pluck('user_id'))->pluck('promotor_type', 'id');
+        if (! $request->user()->isCeo()) {
+            foreach ($data['participants'] as &$participant) {
+                $participant['incentive_type'] = $promotorTypes[(int) $participant['user_id']];
+            }
+            unset($participant);
+        }
 
         $participants = collect($data['participants']);
         if (! empty($data['is_cooperation'])) {

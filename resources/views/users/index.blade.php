@@ -11,6 +11,20 @@
         </a>
     </div>
 
+    <form method="GET" class="mb-4 flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-end">
+        <label class="text-xs font-semibold text-slate-600">Filter tipe promotor
+            <select name="promotor_type" class="mt-1 block min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm sm:w-56">
+                <option value="">Semua tipe</option>
+                <option value="none" @selected(($filters['promotor_type'] ?? '') === 'none')>Bukan Promotor</option>
+                @foreach(\App\Models\User::PROMOTOR_TYPES as $value => $label)
+                    <option value="{{ $value }}" @selected(($filters['promotor_type'] ?? '') === $value)>{{ $label }}</option>
+                @endforeach
+            </select>
+        </label>
+        <button class="min-h-10 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Tampilkan</button>
+        @if(filled($filters['promotor_type'] ?? null))<a href="{{ route('users.index') }}" class="flex min-h-10 items-center justify-center rounded-lg border px-4 py-2 text-sm">Reset</a>@endif
+    </form>
+
     <div class="bg-white rounded-xl border border-slate-200 overflow-x-auto">
         <table class="w-full text-sm">
             <thead class="text-left text-xs text-slate-500 uppercase tracking-wide bg-slate-50">
@@ -19,6 +33,7 @@
                     <th class="px-4 py-3">Nama</th>
                     <th class="px-4 py-3">Kontak</th>
                     <th class="px-4 py-3">Role</th>
+                    <th class="px-4 py-3">Tipe Promotor</th>
                     <th class="px-4 py-3">Cabang Absensi</th>
                     <th class="px-4 py-3">Status</th>
                     <th class="px-4 py-3 text-right">Aksi</th>
@@ -55,6 +70,13 @@
                                     <span class="ml-1 px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[10px]">+ {{ $erEnum->label() }}</span>
                                 @endif
                             @endforeach
+                        </td>
+                        <td class="px-4 py-3">
+                            @if($u->promotor_type)
+                                <span class="rounded-full bg-violet-100 px-2 py-1 text-[11px] font-semibold text-violet-700">{{ \App\Models\User::PROMOTOR_TYPES[$u->promotor_type] }}</span>
+                            @else
+                                <span class="text-xs text-slate-400">Bukan Promotor</span>
+                            @endif
                         </td>
                         <td class="px-4 py-3">
                             @forelse($attendanceBranches as $branch)

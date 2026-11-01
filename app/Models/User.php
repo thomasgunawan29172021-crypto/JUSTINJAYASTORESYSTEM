@@ -13,7 +13,12 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
-    protected $fillable = ['name', 'email', 'phone', 'password', 'role', 'extra_roles', 'branch_id', 'is_active', 'base_salary'];
+    public const PROMOTOR_TYPES = [
+        'fl' => 'Promotor FL',
+        'brand' => 'Promotor Brand',
+    ];
+
+    protected $fillable = ['name', 'email', 'phone', 'password', 'role', 'extra_roles', 'branch_id', 'is_active', 'base_salary', 'promotor_type'];
 
     protected $hidden = ['password', 'remember_token'];
 

@@ -24,8 +24,8 @@ class IncentiveTest extends TestCase
     {
         parent::setUp();
         $this->branch = Branch::create(['name' => 'Cabang Test', 'code' => 'ICT']);
-        $this->staff = User::factory()->create(['role' => 'frontliner', 'branch_id' => $this->branch->id, 'is_active' => true]);
-        $this->partner = User::factory()->create(['role' => 'promotor', 'branch_id' => $this->branch->id, 'is_active' => true]);
+        $this->staff = User::factory()->create(['role' => 'frontliner', 'branch_id' => $this->branch->id, 'is_active' => true, 'promotor_type' => 'fl']);
+        $this->partner = User::factory()->create(['role' => 'promotor', 'branch_id' => $this->branch->id, 'is_active' => true, 'promotor_type' => 'brand']);
         $this->ceo = User::factory()->create(['role' => 'ceo', 'branch_id' => $this->branch->id, 'is_active' => true]);
         $this->finance = User::factory()->create(['role' => 'admin_keuangan', 'branch_id' => $this->branch->id, 'is_active' => true]);
     }
@@ -75,6 +75,11 @@ class IncentiveTest extends TestCase
         $this->assertDatabaseHas('incentive_submissions', ['id' => $submission->id, 'approval_status' => 'approved', 'payment_status' => 'paid']);
 
         IncentiveTier::create(['branch_id' => $this->branch->id, 'currency' => 'IDR', 'type' => 'fl', 'min_target' => 500000, 'reward_value' => 10]);
+        IncentiveTier::create([
+            'branch_id' => $this->branch->id, 'currency' => 'IDR', 'type' => 'fl',
+            'effective_from' => now()->addMonthNoOverflow()->startOfMonth(),
+            'min_target' => 500000, 'reward_value' => 20,
+        ]);
         IncentiveTier::create(['branch_id' => $this->branch->id, 'currency' => 'IDR', 'type' => 'brand', 'min_target' => 3000000, 'reward_value' => 1]);
         IncentiveTier::create(['branch_id' => $this->branch->id, 'currency' => 'IDR', 'type' => 'social', 'min_target' => 1, 'reward_value' => 1000]);
 
@@ -88,6 +93,11 @@ class IncentiveTest extends TestCase
         $this->assertEquals(30000, $brand['incentive']);
         $this->assertEquals(1, $social['metric']);
         $this->assertEquals(1000, $social['incentive']);
+
+        $nextMonth = now()->addMonthNoOverflow()->startOfMonth();
+        $submission->update(['transaction_date' => $nextMonth->toDateString()]);
+        $futureFl = app(IncentiveCalculatorService::class)->calculate($nextMonth->format('Y-m'))->firstWhere('type', 'fl');
+        $this->assertEquals(150000, $futureFl['incentive']);
     }
 
     public function test_cooperation_requires_exact_source_and_closing_participants_and_only_ceo_can_edit(): void
@@ -101,6 +111,87 @@ class IncentiveTest extends TestCase
         $submission = IncentiveSubmission::firstOrFail();
         $this->get(route('incentives.edit', $submission))->assertForbidden();
         $this->actingAs($this->ceo)->get(route('incentives.edit', $submission))->assertOk();
+    }
+
+    public function test_promotor_type_is_automatic_for_staff_and_non_promotor_is_rejected(): void
+    {
+        $spoofed = $this->payload(['participants' => [
+            ['user_id' => $this->staff->id, 'incentive_type' => 'brand', 'cooperation_role' => 'source'],
+            ['user_id' => $this->partner->id, 'incentive_type' => 'fl', 'cooperation_role' => 'closing'],
+        ]]);
+        $this->actingAs($this->staff)->post(route('incentives.store'), $spoofed)->assertSessionHasNoErrors();
+        $this->assertSame(
+            ['fl', 'brand'],
+            IncentiveSubmission::firstOrFail()->participants()->orderBy('id')->pluck('incentive_type')->all()
+        );
+
+        $nonPromotor = User::factory()->create([
+            'role' => 'frontliner', 'branch_id' => $this->branch->id, 'is_active' => true, 'promotor_type' => null,
+        ]);
+        $invalid = $this->payload([
+            'invoice_number' => 'INV-NON-PROMOTOR',
+            'participants' => [
+                ['user_id' => $nonPromotor->id, 'incentive_type' => 'fl', 'cooperation_role' => 'source'],
+                ['user_id' => $this->partner->id, 'incentive_type' => 'brand', 'cooperation_role' => 'closing'],
+            ],
+        ]);
+        $this->post(route('incentives.store'), $invalid)->assertSessionHasErrors('participants.0.user_id');
+        $this->assertDatabaseMissing('incentive_submissions', ['invoice_number' => 'INV-NON-PROMOTOR']);
+    }
+
+    public function test_ceo_can_set_promotor_type_from_user_management(): void
+    {
+        $this->actingAs($this->ceo)->put(route('users.update', $this->staff), [
+            'name' => $this->staff->name,
+            'email' => $this->staff->email,
+            'phone' => $this->staff->phone,
+            'password' => '',
+            'role' => $this->staff->role->value,
+            'branch_id' => $this->branch->id,
+            'branch_ids' => [$this->branch->id],
+            'base_salary' => 0,
+            'promotor_type' => 'brand',
+            'is_active' => '1',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('users', ['id' => $this->staff->id, 'promotor_type' => 'brand']);
+        $this->get(route('users.index', ['promotor_type' => 'brand']))
+            ->assertOk()->assertSee($this->staff->name)->assertSee('Promotor Brand');
+    }
+
+    public function test_setting_edits_are_versioned_for_next_month_and_can_be_copied_to_all_branches(): void
+    {
+        $historical = IncentiveTier::create([
+            'branch_id' => $this->branch->id, 'currency' => 'IDR', 'type' => 'fl',
+            'label' => 'Lama', 'min_target' => 2500000, 'reward_value' => 10,
+        ]);
+        $otherBranch = Branch::create(['name' => 'Cabang Lain', 'code' => 'IC2']);
+        $effectiveDate = now()->addMonthNoOverflow()->startOfMonth()->toDateString();
+
+        $this->actingAs($this->ceo)->put(route('incentives.settings.update', $historical), [
+            'branch_id' => $this->branch->id,
+            'currency' => 'IDR',
+            'type' => 'fl',
+            'label' => 'Baru',
+            'min_target' => '2.500.000',
+            'reward_value' => '11,5',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('incentive_tiers', [
+            'id' => $historical->id, 'effective_from' => '2000-01-01', 'reward_value' => 10,
+        ]);
+        $futureTier = IncentiveTier::where('branch_id', $this->branch->id)
+            ->whereDate('effective_from', $effectiveDate)->where('type', 'fl')
+            ->where('min_target', 2500000)->where('reward_value', 11.5)->firstOrFail();
+        $this->get(route('incentives.settings', ['edit' => $futureTier->id]))
+            ->assertOk()->assertSee('Edit data')->assertSee('value="2.500.000"', false);
+
+        $this->post(route('incentives.settings.copy-all'), [
+            'source_branch_id' => $this->branch->id, 'currency' => 'IDR', 'type' => 'fl',
+        ])->assertSessionHasNoErrors();
+        $this->assertTrue(IncentiveTier::where('branch_id', $otherBranch->id)
+            ->whereDate('effective_from', $effectiveDate)->where('type', 'fl')
+            ->where('min_target', 2500000)->where('reward_value', 11.5)->exists());
     }
 
     public function test_all_incentive_pages_render_for_their_authorized_roles(): void
