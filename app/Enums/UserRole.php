@@ -54,6 +54,12 @@ enum UserRole: string
         return in_array($this, [self::Ceo, self::KepalaKeuangan], true);
     }
 
+    /** Cek lunas insentif boleh dilakukan tim Finance, tanpa membuka akses payroll. */
+    public function canReviewIncentivePayment(): bool
+    {
+        return in_array($this, [self::Ceo, self::KepalaKeuangan, self::AdminKeuangan], true);
+    }
+
     /** Kelola modul sosmed — CEO + PIC Sosmed. */
     public function canManageSosmed(): bool
     {

@@ -119,6 +119,7 @@ class User extends Authenticatable
     public function isManager(): bool               { return $this->anyRole(fn ($r) => $r->isManager()); }
     public function canAccessService(): bool        { return $this->anyRole(fn ($r) => $r->canAccessService()); }
     public function canAccessFinance(): bool        { return $this->anyRole(fn ($r) => $r->canAccessFinance()); }
+    public function canReviewIncentivePayment(): bool { return $this->anyRole(fn ($r) => $r->canReviewIncentivePayment()); }
     public function canCreateWarrantyClaim(): bool  { return $this->anyRole(fn ($r) => $r->canCreateWarrantyClaim()); }
     public function canProcessWarrantyClaim(): bool { return $this->anyRole(fn ($r) => $r->canProcessWarrantyClaim()); }
     public function canHandoverWarrantyClaim(): bool { return $this->anyRole(fn ($r) => $r->canHandoverWarrantyClaim()); }

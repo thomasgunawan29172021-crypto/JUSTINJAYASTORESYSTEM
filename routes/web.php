@@ -17,6 +17,8 @@ use App\Http\Controllers\Marketplace\StoreController;
 use App\Http\Controllers\Marketplace\TaskController;
 use App\Http\Controllers\BrandProgramController;
 use App\Http\Controllers\PayrollController;
+use App\Http\Controllers\IncentiveController;
+use App\Http\Controllers\IncentiveSettingController;
 use App\Http\Controllers\PricingSettingController;
 use App\Http\Controllers\Service\DashboardController as ServiceDashboardController;
 use App\Http\Controllers\Service\KpiController;
@@ -359,5 +361,22 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('/payroll',                [PayrollController::class, 'index'])->name('payroll.index');
         Route::post('/payroll/{user}/issue',  [PayrollController::class, 'issue'])->name('payroll.issue');
         Route::get('/payroll/slip/{payslip}', [PayrollController::class, 'show'])->name('payroll.show');
+
+    });
+
+    // Semua pegawai boleh mengajukan dan melihat pengajuan terkait dirinya.
+    Route::get('/incentives', [IncentiveController::class, 'index'])->name('incentives.index');
+    Route::get('/incentives/create', [IncentiveController::class, 'create'])->name('incentives.create');
+    Route::post('/incentives', [IncentiveController::class, 'store'])->name('incentives.store');
+    Route::get('/incentives/{incentive}', [IncentiveController::class, 'show'])->name('incentives.show');
+    Route::patch('/incentives/{incentive}/payment', [IncentiveController::class, 'payment'])->name('incentives.payment');
+
+    Route::middleware('ceo')->group(function () {
+        Route::get('/incentives/{incentive}/edit', [IncentiveController::class, 'edit'])->name('incentives.edit');
+        Route::put('/incentives/{incentive}', [IncentiveController::class, 'update'])->name('incentives.update');
+        Route::patch('/incentives/{incentive}/decision', [IncentiveController::class, 'decide'])->name('incentives.decision');
+        Route::get('/incentive-settings', [IncentiveSettingController::class, 'index'])->name('incentives.settings');
+        Route::post('/incentive-settings', [IncentiveSettingController::class, 'store'])->name('incentives.settings.store');
+        Route::delete('/incentive-settings/{tier}', [IncentiveSettingController::class, 'destroy'])->name('incentives.settings.destroy');
     });
 });
