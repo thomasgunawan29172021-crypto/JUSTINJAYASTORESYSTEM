@@ -21,7 +21,7 @@
     @if(session('ok'))<div class="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-700">{{ session('ok') }}</div>@endif
     @if($errors->any())<div class="rounded-xl bg-rose-50 p-4 text-sm text-rose-700">@foreach($errors->all() as $error)<p>• {{ $error }}</p>@endforeach</div>@endif
 
-    <form id="tier-form" method="POST" action="{{ $editing ? route('incentives.settings.update', $editingTier) : route('incentives.settings.store') }}" data-no-draft class="grid gap-3 rounded-xl border {{ $editing ? 'border-amber-300 bg-amber-50' : 'bg-white' }} p-4 md:grid-cols-2 xl:grid-cols-6">
+    <form id="tier-form" method="POST" action="{{ $editing ? route('incentives.settings.update', $editingTier) : route('incentives.settings.store') }}" data-draft-no-warning class="grid gap-3 rounded-xl border {{ $editing ? 'border-amber-300 bg-amber-50' : 'bg-white' }} p-4 md:grid-cols-2 xl:grid-cols-6">
         @csrf @if($editing) @method('PUT') @endif
         <label>Cabang<select name="branch_id" required class="mt-1 block w-full rounded-lg border p-2"><option value="">Pilih cabang</option>@foreach($branches as $branch)<option value="{{ $branch->id }}" @selected(old('branch_id', $editingTier?->branch_id) == $branch->id)>{{ $branch->name }}</option>@endforeach</select></label>
         <label>Mata uang<select name="currency" required class="mt-1 block w-full rounded-lg border p-2">@foreach(\App\Models\IncentiveSubmission::CURRENCIES as $code => $label)<option value="{{ $code }}" @selected(old('currency', $editingTier?->currency ?? 'IDR') === $code)>{{ $label }}</option>@endforeach</select></label>

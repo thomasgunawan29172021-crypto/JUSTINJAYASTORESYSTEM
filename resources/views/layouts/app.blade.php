@@ -711,7 +711,7 @@
             savedAt: Date.now()
         };
         try { localStorage.setItem(key, JSON.stringify(payload)); } catch (e) {}
-        dirtyForms.add(form);
+        if (!form.hasAttribute('data-draft-no-warning')) dirtyForms.add(form);
     }
 
     function restoreDynamicRows(form, saved) {
@@ -766,7 +766,7 @@
             if (saved && saved.values && !hasServerErrors) {
                 restoreDynamicRows(form, saved);
                 applyValues(form, saved.values);
-                dirtyForms.add(form);
+                if (!form.hasAttribute('data-draft-no-warning')) dirtyForms.add(form);
                 form.dispatchEvent(new CustomEvent('jjs:draft-restored'));
             } else if (hasServerErrors) {
                 save(form, key);
