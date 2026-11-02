@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\IncentiveSubmission;
 use App\Models\User;
 use App\Services\IncentiveCalculatorService;
+use App\Services\IncentiveMotivationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -13,7 +14,11 @@ use Illuminate\Validation\ValidationException;
 
 class IncentiveController extends Controller
 {
-    public function index(Request $request, IncentiveCalculatorService $calculator)
+    public function index(
+        Request $request,
+        IncentiveCalculatorService $calculator,
+        IncentiveMotivationService $motivationService
+    )
     {
         $filters = $request->validate([
             'period' => ['nullable', 'date_format:Y-m'], 'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
@@ -34,12 +39,13 @@ class IncentiveController extends Controller
                 ->orWhereHas('items', fn ($i) => $i->where('product_name', 'like', '%'.$v.'%'))))
             ->latest('transaction_date')->latest('id')->paginate(20)->withQueryString();
 
-        $summaryUserId = ($user->isCeo() || $user->canReviewIncentivePayment()) ? null : $user->id;
-        $summary = $calculator->calculate($period, $branchId, $summaryUserId);
+        $summary = $calculator->calculate($period, $branchId);
+        $motivation = $motivationService->dashboard($period, $branchId, $user);
 
         return view('incentives.index', [
             'submissions' => $submissions, 'summary' => $summary, 'period' => $period,
             'branches' => Branch::orderBy('name')->get(), 'filters' => $filters,
+            'motivation' => $motivation,
         ]);
     }
 

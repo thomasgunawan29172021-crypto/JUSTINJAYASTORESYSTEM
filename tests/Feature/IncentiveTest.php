@@ -7,6 +7,7 @@ use App\Models\IncentiveSubmission;
 use App\Models\IncentiveTier;
 use App\Models\User;
 use App\Services\IncentiveCalculatorService;
+use App\Services\IncentiveMotivationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -192,6 +193,69 @@ class IncentiveTest extends TestCase
         $this->assertTrue(IncentiveTier::where('branch_id', $otherBranch->id)
             ->whereDate('effective_from', $effectiveDate)->where('type', 'fl')
             ->where('min_target', 2500000)->where('reward_value', 11.5)->exists());
+    }
+
+    public function test_motivation_dashboard_combines_incentives_ranks_by_nominal_and_flashes_on_login(): void
+    {
+        IncentiveTier::create(['branch_id' => $this->branch->id, 'currency' => 'IDR', 'type' => 'fl', 'label' => 'Level 1', 'min_target' => 500000, 'reward_value' => 10]);
+        IncentiveTier::create(['branch_id' => $this->branch->id, 'currency' => 'IDR', 'type' => 'fl', 'label' => 'Level 2', 'min_target' => 1000000, 'reward_value' => 12]);
+        IncentiveTier::create(['branch_id' => $this->branch->id, 'currency' => 'IDR', 'type' => 'brand', 'min_target' => 3000000, 'reward_value' => 1]);
+        IncentiveTier::create(['branch_id' => $this->branch->id, 'currency' => 'IDR', 'type' => 'social', 'label' => 'Bintang 1', 'min_target' => 1, 'reward_value' => 1000]);
+        IncentiveTier::create(['branch_id' => $this->branch->id, 'currency' => 'IDR', 'type' => 'social', 'label' => 'Bintang 2', 'min_target' => 10, 'reward_value' => 1250]);
+
+        $taiwanBranch = Branch::create(['name' => 'Taiwan', 'code' => 'TPE']);
+        IncentiveTier::create(['branch_id' => $taiwanBranch->id, 'currency' => 'NTD', 'type' => 'fl', 'min_target' => 500000, 'reward_value' => 10]);
+        IncentiveTier::create(['branch_id' => $taiwanBranch->id, 'currency' => 'NTD', 'type' => 'brand', 'min_target' => 3000000, 'reward_value' => 1]);
+        IncentiveTier::create(['branch_id' => $taiwanBranch->id, 'currency' => 'NTD', 'type' => 'social', 'min_target' => 1, 'reward_value' => 1000]);
+
+        $this->actingAs($this->staff)->post(route('incentives.store'), $this->payload())->assertSessionHasNoErrors();
+        $current = IncentiveSubmission::firstOrFail();
+        $this->actingAs($this->ceo)->patch(route('incentives.decision', $current), ['decision' => 'approved']);
+        $this->actingAs($this->finance)->patch(route('incentives.payment', $current), ['payment_status' => 'paid']);
+
+        $previousPayload = $this->payload([
+            'invoice_number' => 'INV-PREVIOUS-001',
+            'transaction_date' => now()->subMonthNoOverflow()->toDateString(),
+        ]);
+        $this->actingAs($this->staff)->post(route('incentives.store'), $previousPayload)->assertSessionHasNoErrors();
+        $previous = IncentiveSubmission::where('invoice_number', 'INV-PREVIOUS-001')->firstOrFail();
+        $this->actingAs($this->ceo)->patch(route('incentives.decision', $previous), ['decision' => 'approved']);
+        $this->actingAs($this->finance)->patch(route('incentives.payment', $previous), ['payment_status' => 'paid']);
+
+        $taiwanPayload = $this->payload([
+            'invoice_number' => 'INV-TAIWAN-001',
+            'branch_id' => $taiwanBranch->id,
+            'currency' => 'NTD',
+        ]);
+        $this->actingAs($this->staff)->post(route('incentives.store'), $taiwanPayload)->assertSessionHasNoErrors();
+        $taiwanSubmission = IncentiveSubmission::where('invoice_number', 'INV-TAIWAN-001')->firstOrFail();
+        $this->actingAs($this->ceo)->patch(route('incentives.decision', $taiwanSubmission), ['decision' => 'approved']);
+        $this->actingAs($this->finance)->patch(route('incentives.payment', $taiwanSubmission), ['payment_status' => 'paid']);
+
+        $dashboard = app(IncentiveMotivationService::class)->dashboard(now()->format('Y-m'), null, $this->staff);
+        $personal = $dashboard['personal']->firstWhere('currency', 'IDR');
+        $flGoal = $personal['goals']->firstWhere('type', 'fl');
+        $indonesia = $dashboard['leaderboards']->firstWhere('currency', 'IDR');
+        $taiwan = $dashboard['leaderboards']->firstWhere('currency', 'NTD');
+
+        $this->assertEquals(76000, $personal['incentive']);
+        $this->assertSame(1, $personal['transactions']);
+        $this->assertEquals(152000, $personal['year_incentive']);
+        $this->assertEquals(0, $personal['comparison_percent']);
+        $this->assertEquals(250000, $flGoal['remaining_to_next']);
+        $this->assertEquals(120000, $flGoal['next_incentive']);
+        $this->assertSame($this->staff->id, $indonesia['monthly']->first()['user_id']);
+        $this->assertSame(1, $indonesia['monthly']->first()['rank']);
+        $this->assertSame($this->staff->id, $taiwan['monthly']->first()['user_id']);
+        $this->assertSame('Taiwan', $taiwan['label']);
+
+        $this->actingAs($this->staff)->get(route('incentives.index'))
+            ->assertOk()->assertSee('Pencapaian Saya')->assertSee('Leaderboard Tim')
+            ->assertSee('Tinggal Rp 250.000 lagi')->assertSee('Rp 120.000');
+
+        $this->post(route('logout'));
+        $this->post(route('login.attempt'), ['email' => $this->staff->email, 'password' => 'password'])
+            ->assertRedirect(route('dashboard'))->assertSessionHas('incentive_motivation');
     }
 
     public function test_all_incentive_pages_render_for_their_authorized_roles(): void

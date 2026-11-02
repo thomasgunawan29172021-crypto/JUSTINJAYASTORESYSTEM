@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\IncentiveMotivationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
@@ -14,7 +15,7 @@ class AuthController extends Controller
         return view('auth.login');
     }
 
-    public function attempt(Request $request)
+    public function attempt(Request $request, IncentiveMotivationService $motivationService)
     {
         $credentials = $request->validate([
             'email'    => ['required', 'string'],
@@ -36,6 +37,10 @@ class AuthController extends Controller
         if (Auth::attempt($credentials + ['is_active' => true], $request->boolean('remember'))) {
             RateLimiter::clear($throttleKey);
             $request->session()->regenerate();
+            $motivation = $motivationService->loginMessage($request->user());
+            if ($motivation) {
+                $request->session()->flash('incentive_motivation', $motivation);
+            }
 
             return redirect()->intended(route('dashboard'));
         }

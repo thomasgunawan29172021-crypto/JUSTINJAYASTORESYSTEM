@@ -425,6 +425,35 @@
     </div>
 </div>
 
+@if($loginMotivation = session('incentive_motivation'))
+    <div id="incentive-login-motivation" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="incentive-motivation-title">
+        <div class="relative w-full max-w-lg overflow-hidden rounded-3xl border border-white/40 bg-white shadow-2xl">
+            <div class="bg-gradient-to-br from-emerald-500 via-teal-500 to-sky-600 px-6 py-7 text-white sm:px-8">
+                <button type="button" data-close-incentive-motivation class="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-white/15 text-xl hover:bg-white/25" aria-label="Tutup">×</button>
+                <div class="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-white/20 text-3xl shadow-inner">🏆</div>
+                <h2 id="incentive-motivation-title" class="pr-8 text-2xl font-black leading-tight">{{ $loginMotivation['title'] }}</h2>
+                <p class="mt-3 text-sm leading-6 text-emerald-50">{{ $loginMotivation['message'] }}</p>
+            </div>
+            <div class="flex flex-col gap-2 bg-white p-5 sm:flex-row sm:justify-end">
+                <button type="button" data-close-incentive-motivation class="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600">Nanti dulu</button>
+                <a href="{{ $loginMotivation['url'] }}" class="rounded-xl bg-slate-900 px-5 py-2.5 text-center text-sm font-bold text-white">Lihat pencapaian saya →</a>
+            </div>
+        </div>
+    </div>
+    <script>
+    (function () {
+        var modal = document.getElementById('incentive-login-motivation');
+        if (!modal) return;
+        modal.querySelectorAll('[data-close-incentive-motivation]').forEach(function (button) {
+            button.addEventListener('click', function () { modal.remove(); });
+        });
+        modal.addEventListener('click', function (event) {
+            if (event.target === modal) modal.remove();
+        });
+    })();
+    </script>
+@endif
+
 <script>
     window.__TAB__       = { key: @json($curRoute), label: @json($curLabel), url: @json($curUrl) };
     window.__DASHBOARD__ = @json(route('dashboard'));
